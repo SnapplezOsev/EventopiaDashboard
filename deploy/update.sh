@@ -40,7 +40,8 @@ sudo -u "$APP_USER" git fetch origin 2>/dev/null
 LOCAL_HASH=$(git rev-parse HEAD)
 REMOTE_HASH=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null || echo "unknown")
 
-if [[ "$LOCAL_HASH" == "$REMOTE_HASH" ]]; then
+FORCE="${1:-}"
+if [[ "$LOCAL_HASH" == "$REMOTE_HASH" && "$FORCE" != "--force" && "$FORCE" != "-f" ]]; then
     info "Ingen uppdatering tillgänglig (${LOCAL_HASH:0:8})"
     exit 0
 fi

@@ -21,10 +21,11 @@ export default function MeetingModal({ meeting, crew, onClose, onSave, onDelete 
     return `${hours}:${minutes}`;
   };
 
+  const todayStr = formatDate(new Date());
+
   const [name, setName] = useState(meeting?.name || '');
-  const [startDate, setStartDate] = useState(initialStart ? formatDate(initialStart) : '');
+  const [meetingDate, setMeetingDate] = useState(initialStart ? formatDate(initialStart) : todayStr);
   const [startTime, setStartTime] = useState(initialStart ? formatTime(initialStart) : '09:00');
-  const [endDate, setEndDate] = useState(initialEnd ? formatDate(initialEnd) : '');
   const [endTime, setEndTime] = useState(initialEnd ? formatTime(initialEnd) : '10:00');
   const [location, setLocation] = useState(meeting?.locationName || meeting?.location || '');
   const [remark, setRemark] = useState(meeting?.remark || '');
@@ -36,11 +37,11 @@ export default function MeetingModal({ meeting, crew, onClose, onSave, onDelete 
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleSave = async () => {
-    if (!name.trim() || !startDate || !startTime || !endDate || !endTime) return;
+    if (!name.trim() || !meetingDate || !startTime || !endTime) return;
     setIsSaving(true);
 
-    const startStr = `${startDate}T${startTime}:00+02:00`;
-    const endStr = `${endDate}T${endTime}:00+02:00`;
+    const startStr = `${meetingDate}T${startTime}:00+02:00`;
+    const endStr = `${meetingDate}T${endTime}:00+02:00`;
 
     await onSave({
       id: meeting?.realId || meeting?.id,
@@ -110,40 +111,34 @@ export default function MeetingModal({ meeting, crew, onClose, onSave, onDelete 
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Datum och Tider */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label className="block text-white/60 text-sm font-medium mb-2">Start</label>
-              <div className="flex gap-2">
-                <input 
-                  type="date"
-                  value={startDate}
-                  onChange={e => setStartDate(e.target.value)}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-orange-500/50"
-                />
-                <input 
-                  type="time"
-                  value={startTime}
-                  onChange={e => setStartTime(e.target.value)}
-                  className="w-24 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-orange-500/50"
-                />
-              </div>
+              <label className="block text-white/60 text-sm font-medium mb-2">Datum</label>
+              <input 
+                type="date"
+                value={meetingDate}
+                onChange={e => setMeetingDate(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-white focus:outline-none focus:border-orange-500/50"
+              />
             </div>
             <div>
-              <label className="block text-white/60 text-sm font-medium mb-2">Slut</label>
-              <div className="flex gap-2">
-                <input 
-                  type="date"
-                  value={endDate}
-                  onChange={e => setEndDate(e.target.value)}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-orange-500/50"
-                />
-                <input 
-                  type="time"
-                  value={endTime}
-                  onChange={e => setEndTime(e.target.value)}
-                  className="w-24 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-orange-500/50"
-                />
-              </div>
+              <label className="block text-white/60 text-sm font-medium mb-2">Start-tid</label>
+              <input 
+                type="time"
+                value={startTime}
+                onChange={e => setStartTime(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-white focus:outline-none focus:border-orange-500/50"
+              />
+            </div>
+            <div>
+              <label className="block text-white/60 text-sm font-medium mb-2">Slut-tid</label>
+              <input 
+                type="time"
+                value={endTime}
+                onChange={e => setEndTime(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-white focus:outline-none focus:border-orange-500/50"
+              />
             </div>
           </div>
 
@@ -250,7 +245,7 @@ export default function MeetingModal({ meeting, crew, onClose, onSave, onDelete 
           <button 
             type="button"
             onClick={handleSave}
-            disabled={!name.trim() || !startDate || !endDate || isSaving || isDeleting}
+            disabled={!name.trim() || !meetingDate || !startTime || !endTime || isSaving || isDeleting}
             className="flex-1 py-4 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-white font-semibold transition-all shadow-lg text-lg"
           >
             {isSaving ? 'Sparar...' : (isEditing ? 'Spara Ändringar' : 'Boka Möte')}

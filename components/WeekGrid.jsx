@@ -49,12 +49,25 @@ export default function WeekGrid({ functions = [], weekStart, onFunctionClick })
         const capitalizedDay = dayStr.charAt(0).toUpperCase() + dayStr.slice(1);
         
         const dayFunctions = functions.filter(f => {
+          if (!f.planperiod_start) return false;
           const start = new Date(f.planperiod_start);
-          const end = new Date(f.planperiod_end);
+          const end = new Date(f.planperiod_end || f.planperiod_start);
+          
+          if (isNaN(start.getTime()) || start.getFullYear() < 2000) return false;
+
           const currentDayStart = new Date(day);
-          currentDayStart.setHours(0,0,0,0);
+          currentDayStart.setHours(0, 0, 0, 0);
           const currentDayEnd = new Date(day);
-          currentDayEnd.setHours(23,59,59,999);
+          currentDayEnd.setHours(23, 59, 59, 999);
+
+          // For appointments (meetings): strictly match the specific day
+          if (f.type === 'appointment') {
+            const startDay = new Date(start);
+            startDay.setHours(0, 0, 0, 0);
+            return startDay.getTime() === currentDayStart.getTime();
+          }
+
+          // For project functions: check if date range overlaps this day
           return (start <= currentDayEnd && end >= currentDayStart);
         }).sort((a, b) => new Date(a.planperiod_start) - new Date(b.planperiod_start));
 

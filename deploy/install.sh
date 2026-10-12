@@ -93,6 +93,11 @@ fi
 usermod -aG video "$APP_USER" 2>/dev/null || true
 usermod -aG input "$APP_USER" 2>/dev/null || true
 
+# Tillåt användaren att köra uppdateringsscriptet och starta om dashboard utan lösenord
+mkdir -p /etc/sudoers.d
+echo "$APP_USER ALL=(ALL) NOPASSWD: $APP_DIR/deploy/update.sh, /usr/bin/systemctl restart $APP_NAME, /usr/bin/systemctl restart ${APP_NAME}.service" > /etc/sudoers.d/99-eventopia-dashboard
+chmod 0440 /etc/sudoers.d/99-eventopia-dashboard
+
 # ============================================================================
 # STEG 3: Klona/kopiera projekt
 # ============================================================================
