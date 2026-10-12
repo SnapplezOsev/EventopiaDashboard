@@ -72,6 +72,10 @@ info "Installerar npm-paket..."
 sudo -u "$APP_USER" bash -c "cd $APP_DIR && npm ci --production=false"
 ok "npm-paket installerade"
 
+# Sätt fulla rättigheter till användaren innan bygge så inga gamla filer låser sig
+chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+rm -rf "$APP_DIR/.next/standalone" 2>/dev/null || true
+
 # Bygg
 info "Bygger om appen..."
 sudo -u "$APP_USER" bash -c "cd $APP_DIR && npm run build"

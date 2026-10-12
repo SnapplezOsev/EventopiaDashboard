@@ -202,6 +202,7 @@ success "App byggd!"
 if [[ -d "$APP_DIR/.next/standalone" ]]; then
     cp -r "$APP_DIR/public" "$APP_DIR/.next/standalone/public" 2>/dev/null || true
     cp -r "$APP_DIR/.next/static" "$APP_DIR/.next/standalone/.next/static" 2>/dev/null || true
+    chown -R "$APP_USER:$APP_USER" "$APP_DIR"
     success "Static-filer kopierade till standalone"
 fi
 
