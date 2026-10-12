@@ -7,18 +7,35 @@ export async function POST(request) {
     const pendingAssignments = body.pendingAssignments || [];
     delete body.pendingAssignments;
 
-    // Default color if missing, Rentman requires it
-    if (!body.color) body.color = '14B4EC';
-    const data = await postRentman('/tasks', body);
+    // Rentman task schema: name (required), description (optional), deadline (ISO datetime), completed (boolean)
+    const taskPayload = {
+      name: body.name,
+      description: body.description || body.details || '',
+      completed: false,
+    };
 
+    if (body.deadline) {
+      taskPayload.deadline = body.deadline.includes('T') ? body.deadline : `${body.deadline}T18:00:00Z`;
+    }
+
+    if (body.color) {
+      taskPayload.color = body.color;
+    }
+
+    const data = await postRentman('/tasks', taskPayload);
     const newTaskId = data?.data?.id || data?.id;
+
     if (newTaskId && pendingAssignments.length > 0) {
-      await Promise.all(pendingAssignments.map(crewId => 
-        postRentman('/taskassignments', {
-          task: `/tasks/${newTaskId}`,
-          crew: `/crew/${crewId}`
-        }).catch(err => console.error('Failed to assign crew:', err))
-      ));
+      for (const crewId of pendingAssignments) {
+        try {
+          await postRentman('/taskassignments', {
+            task: `/tasks/${newTaskId}`,
+            crew: `/crew/${crewId}`
+          });
+        } catch (assignErr) {
+          console.warn('Failed to assign crew to task:', assignErr.message);
+        }
+      }
     }
 
     return NextResponse.json(data);
@@ -33,7 +50,22 @@ export async function PUT(request) {
     const body = await request.json();
     const { id, ...updateData } = body;
     if (!id) return NextResponse.json({ error: 'Missing task ID' }, { status: 400 });
-    const data = await putRentman(`/tasks/${id}`, updateData);
+
+    const taskPayload = {};
+    if (updateData.name !== undefined) taskPayload.name = updateData.name;
+    if (updateData.details !== undefined || updateData.description !== undefined) {
+      taskPayload.description = updateData.details !== undefined ? updateData.details : updateData.description;
+    }
+    if (updateData.deadline !== undefined) {
+      taskPayload.deadline = updateData.deadline && !updateData.deadline.includes('T')
+        ? `${updateData.deadline}T18:00:00Z`
+        : updateData.deadline;
+    }
+    if (updateData.completed !== undefined) {
+      taskPayload.completed = updateData.completed;
+    }
+
+    const data = await putRentman(`/tasks/${id}`, taskPayload);
     return NextResponse.json(data);
   } catch (error) {
     console.error('Task PUT Error:', error);

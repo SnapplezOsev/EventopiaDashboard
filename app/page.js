@@ -168,6 +168,7 @@ export default function Dashboard() {
   const [screensaverActive, setScreensaverActive] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
+  const [editingMeeting, setEditingMeeting] = useState(null);
   const [retryCountdown, setRetryCountdown] = useState(null);
   const [settings, setSettings] = useState({
     startTime: '09:50',
@@ -322,12 +323,15 @@ export default function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(taskData),
       });
-      if (!res.ok) throw new Error('Failed to save task');
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to save task');
+      }
       dispatch({ type: 'CLOSE_TASK_MODAL' });
       fetchData(); // Refresh tasks
     } catch (err) {
       console.error(err);
-      alert('Misslyckades att spara uppgiften.');
+      alert(`Misslyckades att spara uppgiften: ${err.message}`);
     }
   }, [fetchData]);
 
@@ -350,17 +354,38 @@ export default function Dashboard() {
   // --- Meeting Handlers ---
   const handleSaveMeeting = useCallback(async (meetingData) => {
     try {
+      const isEdit = Boolean(meetingData.id);
       const res = await fetch('/api/meetings', {
-        method: 'POST',
+        method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(meetingData),
       });
-      if (!res.ok) throw new Error('Failed to save meeting');
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to save meeting');
+      }
       setIsMeetingModalOpen(false);
+      setEditingMeeting(null);
       fetchData();
     } catch (err) {
       console.error(err);
-      alert('Misslyckades att boka mötet.');
+      alert(`Misslyckades att ${meetingData.id ? 'ändra' : 'boka'} mötet: ${err.message}`);
+    }
+  }, [fetchData]);
+
+  const handleDeleteMeeting = useCallback(async (meetingId) => {
+    try {
+      const res = await fetch(`/api/meetings?id=${meetingId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to delete meeting');
+      dispatch({ type: 'CLOSE_MODAL' });
+      setIsMeetingModalOpen(false);
+      setEditingMeeting(null);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Misslyckades att ta bort mötet.');
     }
   }, [fetchData]);
 
@@ -404,7 +429,7 @@ export default function Dashboard() {
   }, [state.selectedFunction, state.crew, fetchData]);
 
   // Handle crew unassignment
-  const handleUnassign = useCallback(async (projectCrewId) => {
+  const handleUnassign = useCallback(async (projectCrewId, isAppointment = false) => {
     dispatch({
       type: 'OPTIMISTIC_UNASSIGN',
       payload: { projectCrewId },
@@ -414,7 +439,7 @@ export default function Dashboard() {
       const res = await fetch('/api/unassign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectCrewId }),
+        body: JSON.stringify({ projectCrewId, isAppointment }),
       });
       if (!res.ok) throw new Error('Unassignment failed');
       fetchData();
@@ -553,6 +578,12 @@ export default function Dashboard() {
           crew={state.crew}
           onAssign={handleAssign}
           onUnassign={handleUnassign}
+          onEditMeeting={(meeting) => {
+            dispatch({ type: 'CLOSE_MODAL' });
+            setEditingMeeting(meeting);
+            setIsMeetingModalOpen(true);
+          }}
+          onDeleteMeeting={handleDeleteMeeting}
           onClose={() => dispatch({ type: 'CLOSE_MODAL' })}
         />
       )}
@@ -571,9 +602,14 @@ export default function Dashboard() {
       {/* Meeting Modal */}
       {isMeetingModalOpen && (
         <MeetingModal
+          meeting={editingMeeting}
           crew={state.crew}
-          onClose={() => setIsMeetingModalOpen(false)}
+          onClose={() => {
+            setIsMeetingModalOpen(false);
+            setEditingMeeting(null);
+          }}
           onSave={handleSaveMeeting}
+          onDelete={handleDeleteMeeting}
         />
       )}
 
