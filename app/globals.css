@@ -1,0 +1,285 @@
+@import "tailwindcss";
+
+/* ========================================
+   DESIGN SYSTEM — Dark Glassmorphism
+   Rentman Touch Dashboard
+   ======================================== */
+
+:root {
+  /* Base colors */
+  --bg-deep: #060918;
+  --bg-surface: #0d1528;
+  --bg-elevated: #131b32;
+
+  /* Glass effect */
+  --glass-bg: rgba(255, 255, 255, 0.04);
+  --glass-bg-hover: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-bright: rgba(255, 255, 255, 0.15);
+
+  /* Text */
+  --text-primary: rgba(255, 255, 255, 0.95);
+  --text-secondary: rgba(255, 255, 255, 0.65);
+  --text-muted: rgba(255, 255, 255, 0.40);
+
+  /* Accents */
+  --accent-blue: #3b82f6;
+  --accent-purple: #8b5cf6;
+  --accent-gradient: linear-gradient(135deg, #3b82f6, #8b5cf6);
+
+  /* Status colors */
+  --status-assigned: #22c55e;
+  --status-partial: #f59e0b;
+  --status-unassigned: #ef4444;
+
+  /* Priority */
+  --priority-high: #ef4444;
+  --priority-medium: #f59e0b;
+  --priority-low: #6b7280;
+
+  /* Touch */
+  --touch-min: 48px;
+
+  /* Font */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+}
+
+@theme inline {
+  --color-background: var(--bg-deep);
+  --color-foreground: var(--text-primary);
+  --color-glass: var(--glass-bg);
+  --color-glass-hover: var(--glass-bg-hover);
+  --color-glass-border: var(--glass-border);
+  --color-glass-border-bright: var(--glass-border-bright);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-purple: var(--accent-purple);
+  --color-status-assigned: var(--status-assigned);
+  --color-status-partial: var(--status-partial);
+  --color-status-unassigned: var(--status-unassigned);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+/* ========================================
+   BASE STYLES
+   ======================================== */
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+html {
+  overflow: hidden;
+  height: 100%;
+}
+
+body {
+  background: linear-gradient(145deg, var(--bg-deep) 0%, var(--bg-surface) 50%, var(--bg-deep) 100%);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ========================================
+   GLASS PANEL
+   ======================================== */
+
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 1rem;
+}
+
+.glass-panel-bright {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border-bright);
+  border-radius: 1rem;
+}
+
+/* ========================================
+   SCROLLBAR (touch-friendly, minimal)
+   ======================================== */
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.8), 0 0 40px rgba(239, 68, 68, 0.3);
+  }
+}
+
+@keyframes pulse-glow-subtle {
+  0%, 100% {
+    box-shadow: 0 0 2px rgba(239, 68, 68, 0.3);
+    opacity: 0.9;
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+    opacity: 1;
+  }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  25% { background-position: 100% 50%; }
+  50% { background-position: 100% 100%; }
+  75% { background-position: 0% 100%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes today-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.35);
+    border-color: rgba(59, 130, 246, 0.5);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-pulse-glow-subtle {
+  animation: pulse-glow-subtle 2.5s ease-in-out infinite;
+}
+
+.animate-gradient-shift {
+  background-size: 400% 400%;
+  animation: gradient-shift 30s ease infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out forwards;
+}
+
+.animate-today-glow {
+  animation: today-glow 3s ease-in-out infinite;
+}
+
+/* ========================================
+   TOUCH INTERACTIVE
+   ======================================== */
+
+.touch-interactive {
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.2s ease;
+  min-height: var(--touch-min);
+}
+
+.touch-interactive:active {
+  transform: scale(0.97);
+}
+
+/* ========================================
+   TODAY HIGHLIGHT
+   ======================================== */
+
+.today-column {
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  animation: today-glow 3s ease-in-out infinite;
+}
+
+/* ========================================
+   CARD BORDERS BY STATUS
+   ======================================== */
+
+.card-border-assigned {
+  border-left: 4px solid var(--status-assigned);
+}
+
+.card-border-partial {
+  border-left: 4px solid var(--status-partial);
+}
+
+.card-border-unassigned {
+  border-left: 4px solid var(--status-unassigned);
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+.text-gradient {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.border-gradient {
+  border-image: var(--accent-gradient) 1;
+}
+
+/* Screensaver gradient bg */
+.screensaver-bg {
+  background: linear-gradient(
+    -45deg,
+    #060918,
+    #0d1528,
+    #0f172a,
+    #1e1b4b,
+    #0c1445,
+    #060918
+  );
+  background-size: 400% 400%;
+  animation: gradient-shift 30s ease infinite;
+}
