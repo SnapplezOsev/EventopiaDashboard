@@ -1,13 +1,41 @@
 'use client';
 import { useState } from 'react';
 
+function toDDMMYYYY(dateOrStr) {
+  if (!dateOrStr) return '';
+  const d = typeof dateOrStr === 'string' ? new Date(dateOrStr) : dateOrStr;
+  if (isNaN(d.getTime())) return dateOrStr;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
+
+function toYYYYMMDD(str) {
+  if (!str) return null;
+  const match = str.trim().match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (match) {
+    const day = match[1].padStart(2, '0');
+    const month = match[2].padStart(2, '0');
+    const year = match[3];
+    return `${year}-${month}-${day}`;
+  }
+  return str;
+}
+
 export default function TaskModal({ task, crew, onClose, onSave, onAssign }) {
   const isNew = !task;
   const [name, setName] = useState(task?.name || '');
   const [details, setDetails] = useState(task?.details || '');
-  const [deadline, setDeadline] = useState(task?.deadline ? task.deadline.slice(0, 10) : '');
+  const [deadline, setDeadline] = useState(task?.deadline ? toDDMMYYYY(task.deadline) : '');
   const [pendingAssignments, setPendingAssignments] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+
+  const setRelativeDate = (daysAhead) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    setDeadline(toDDMMYYYY(d));
+  };
 
   const handleSave = async () => {
     if (!name.trim()) return;
@@ -16,7 +44,7 @@ export default function TaskModal({ task, crew, onClose, onSave, onAssign }) {
       id: task?.id,
       name,
       details,
-      deadline: deadline || null,
+      deadline: toYYYYMMDD(deadline) || null,
       pendingAssignments,
     });
     setIsSaving(false);
@@ -83,14 +111,66 @@ export default function TaskModal({ task, crew, onClose, onSave, onAssign }) {
             />
           </div>
 
+          {/* Förfallodatum i DD-MM-YYYY format */}
           <div>
-            <label className="block text-white/60 text-sm font-medium mb-2">Förfallodatum</label>
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-white/60 text-sm font-medium">
+                Förfallodatum (DD-MM-ÅÅÅÅ)
+              </label>
+              {deadline && (
+                <button
+                  type="button"
+                  onClick={() => setDeadline('')}
+                  className="text-xs text-red-400 hover:text-red-300"
+                >
+                  Rensa datum
+                </button>
+              )}
+            </div>
+            
             <input 
-              type="date"
+              type="text"
               value={deadline}
               onChange={e => setDeadline(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-white/30"
+              placeholder="DD-MM-ÅÅÅÅ (t.ex. 16-10-2026)"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-white/30 font-mono text-base mb-2"
             />
+
+            {/* Touch-knappar för snabbval */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setRelativeDate(0)}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 active:scale-95 text-xs font-semibold rounded-lg text-white/80 border border-white/5"
+              >
+                Idag
+              </button>
+              <button
+                type="button"
+                onClick={() => setRelativeDate(1)}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 active:scale-95 text-xs font-semibold rounded-lg text-white/80 border border-white/5"
+              >
+                Imorgon
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date();
+                  const daysToFriday = (5 - now.getDay() + 7) % 7 || 7;
+                  setRelativeDate(daysToFriday);
+                }}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 active:scale-95 text-xs font-semibold rounded-lg text-white/80 border border-white/5"
+              >
+                På fredag
+              </button>
+              <button
+                type="button"
+                onClick={() => setRelativeDate(7)}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 active:scale-95 text-xs font-semibold rounded-lg text-white/80 border border-white/5"
+              >
+                +7 dagar
+              </button>
+            </div>
           </div>
 
           <div className="pt-4 border-t border-white/10">

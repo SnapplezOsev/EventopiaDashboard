@@ -96,21 +96,25 @@ export default function SettingsModal({ onClose, onSave, currentSettings }) {
             
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-white/50 text-xs uppercase tracking-wider font-bold mb-2">Vaknar (Tid)</label>
+                <label className="block text-white/50 text-xs uppercase tracking-wider font-bold mb-2">Vaknar (Tid, 24h)</label>
                 <input 
-                  type="time" 
+                  type="text" 
                   value={startTime}
                   onChange={e => setStartTime(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 text-lg"
+                  placeholder="07:00"
+                  pattern="[0-2][0-9]:[0-5][0-9]"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 font-mono text-center text-lg"
                 />
               </div>
               <div>
-                <label className="block text-white/50 text-xs uppercase tracking-wider font-bold mb-2">Somnar (Tid)</label>
+                <label className="block text-white/50 text-xs uppercase tracking-wider font-bold mb-2">Somnar (Tid, 24h)</label>
                 <input 
-                  type="time" 
+                  type="text" 
                   value={endTime}
                   onChange={e => setEndTime(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 text-lg"
+                  placeholder="19:00"
+                  pattern="[0-2][0-9]:[0-5][0-9]"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 font-mono text-center text-lg"
                 />
               </div>
             </div>

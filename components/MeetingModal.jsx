@@ -1,32 +1,48 @@
 'use client';
 import { useState } from 'react';
 
+// Helpers for DD-MM-YYYY <-> YYYY-MM-DD
+function toDDMMYYYY(dateOrStr) {
+  if (!dateOrStr) return '';
+  const d = typeof dateOrStr === 'string' ? new Date(dateOrStr) : dateOrStr;
+  if (isNaN(d.getTime())) return '';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
+
+function toYYYYMMDD(str) {
+  if (!str) return '';
+  const match = str.trim().match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (match) {
+    const day = match[1].padStart(2, '0');
+    const month = match[2].padStart(2, '0');
+    const year = match[3];
+    return `${year}-${month}-${day}`;
+  }
+  return str;
+}
+
 export default function MeetingModal({ meeting, crew, onClose, onSave, onDelete }) {
   const isEditing = Boolean(meeting);
 
   const initialStart = meeting?.planperiod_start ? new Date(meeting.planperiod_start) : null;
   const initialEnd = meeting?.planperiod_end ? new Date(meeting.planperiod_end) : null;
 
-  const formatDate = (d) => {
-    if (!d || isNaN(d.getTime())) return '';
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  const formatTime = (d) => {
+  const formatTime24h = (d) => {
     if (!d || isNaN(d.getTime())) return '09:00';
     const hours = String(d.getHours()).padStart(2, '0');
     const minutes = String(d.getMinutes()).padStart(2, '0');
     return `${hours}:${minutes}`;
   };
 
-  const todayStr = formatDate(new Date());
+  const todayDDMMYYYY = toDDMMYYYY(new Date());
 
   const [name, setName] = useState(meeting?.name || '');
-  const [meetingDate, setMeetingDate] = useState(initialStart ? formatDate(initialStart) : todayStr);
-  const [startTime, setStartTime] = useState(initialStart ? formatTime(initialStart) : '09:00');
-  const [endTime, setEndTime] = useState(initialEnd ? formatTime(initialEnd) : '10:00');
+  const [dateInput, setDateInput] = useState(initialStart ? toDDMMYYYY(initialStart) : todayDDMMYYYY);
+  const [startTime, setStartTime] = useState(initialStart ? formatTime24h(initialStart) : '09:00');
+  const [endTime, setEndTime] = useState(initialEnd ? formatTime24h(initialEnd) : '10:00');
   const [location, setLocation] = useState(meeting?.locationName || meeting?.location || '');
   const [remark, setRemark] = useState(meeting?.remark || '');
   const [color, setColor] = useState(meeting?.projectColor?.replace('#', '') || 'E67E22');
@@ -36,12 +52,19 @@ export default function MeetingModal({ meeting, crew, onClose, onSave, onDelete 
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const setRelativeDate = (daysAhead) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    setDateInput(toDDMMYYYY(d));
+  };
+
   const handleSave = async () => {
-    if (!name.trim() || !meetingDate || !startTime || !endTime) return;
+    const isoDate = toYYYYMMDD(dateInput);
+    if (!name.trim() || !isoDate || !startTime || !endTime) return;
     setIsSaving(true);
 
-    const startStr = `${meetingDate}T${startTime}:00+02:00`;
-    const endStr = `${meetingDate}T${endTime}:00+02:00`;
+    const startStr = `${isoDate}T${startTime}:00+02:00`;
+    const endStr = `${isoDate}T${endTime}:00+02:00`;
 
     await onSave({
       id: meeting?.realId || meeting?.id,
@@ -74,6 +97,8 @@ export default function MeetingModal({ meeting, crew, onClose, onSave, onDelete 
     { value: 'E74C3C', label: 'Röd' },
     { value: '9B59B6', label: 'Lila' },
   ];
+
+  const quickTimes = ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00'];
 
   return (
     <div 
@@ -111,34 +136,96 @@ export default function MeetingModal({ meeting, crew, onClose, onSave, onDelete 
             />
           </div>
 
-          {/* Datum och Tider */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-white/60 text-sm font-medium mb-2">Datum</label>
-              <input 
-                type="date"
-                value={meetingDate}
-                onChange={e => setMeetingDate(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-white focus:outline-none focus:border-orange-500/50"
-              />
+          {/* Datum och Tider (DD-MM-YYYY och 24h) */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Datumfält (DD-MM-YYYY) */}
+              <div>
+                <label className="block text-white/60 text-xs uppercase tracking-wider font-bold mb-2">
+                  Datum (DD-MM-ÅÅÅÅ)
+                </label>
+                <input 
+                  type="text"
+                  value={dateInput}
+                  onChange={e => setDateInput(e.target.value)}
+                  placeholder="DD-MM-ÅÅÅÅ"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-orange-500/50 font-mono text-center text-base"
+                />
+              </div>
+
+              {/* Starttid (24h) */}
+              <div>
+                <label className="block text-white/60 text-xs uppercase tracking-wider font-bold mb-2">
+                  Start-tid (24h)
+                </label>
+                <input 
+                  type="text"
+                  value={startTime}
+                  onChange={e => setStartTime(e.target.value)}
+                  placeholder="09:00"
+                  pattern="[0-2][0-9]:[0-5][0-9]"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-orange-500/50 font-mono text-center text-base"
+                />
+              </div>
+
+              {/* Sluttid (24h) */}
+              <div>
+                <label className="block text-white/60 text-xs uppercase tracking-wider font-bold mb-2">
+                  Slut-tid (24h)
+                </label>
+                <input 
+                  type="text"
+                  value={endTime}
+                  onChange={e => setEndTime(e.target.value)}
+                  placeholder="10:00"
+                  pattern="[0-2][0-9]:[0-5][0-9]"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-orange-500/50 font-mono text-center text-base"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-white/60 text-sm font-medium mb-2">Start-tid</label>
-              <input 
-                type="time"
-                value={startTime}
-                onChange={e => setStartTime(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-white focus:outline-none focus:border-orange-500/50"
-              />
-            </div>
-            <div>
-              <label className="block text-white/60 text-sm font-medium mb-2">Slut-tid</label>
-              <input 
-                type="time"
-                value={endTime}
-                onChange={e => setEndTime(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-white focus:outline-none focus:border-orange-500/50"
-              />
+
+            {/* Touch-knappar för snabbval */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setRelativeDate(0)}
+                  className="px-3 py-1.5 bg-white/5 hover:bg-white/10 active:scale-95 text-xs font-semibold rounded-lg text-white/80 border border-white/5"
+                >
+                  Idag
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRelativeDate(1)}
+                  className="px-3 py-1.5 bg-white/5 hover:bg-white/10 active:scale-95 text-xs font-semibold rounded-lg text-white/80 border border-white/5"
+                >
+                  Imorgon
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRelativeDate(2)}
+                  className="px-3 py-1.5 bg-white/5 hover:bg-white/10 active:scale-95 text-xs font-semibold rounded-lg text-white/80 border border-white/5"
+                >
+                  I övermorgon
+                </button>
+              </div>
+
+              <div className="flex gap-1 text-[11px] text-white/50 overflow-x-auto">
+                {quickTimes.slice(0, 4).map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setStartTime(t);
+                      const [h, m] = t.split(':').map(Number);
+                      setEndTime(`${String((h + 1) % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+                    }}
+                    className="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-white/70"
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -245,7 +332,7 @@ export default function MeetingModal({ meeting, crew, onClose, onSave, onDelete 
           <button 
             type="button"
             onClick={handleSave}
-            disabled={!name.trim() || !meetingDate || !startTime || !endTime || isSaving || isDeleting}
+            disabled={!name.trim() || !dateInput || !startTime || !endTime || isSaving || isDeleting}
             className="flex-1 py-4 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-white font-semibold transition-all shadow-lg text-lg"
           >
             {isSaving ? 'Sparar...' : (isEditing ? 'Spara Ändringar' : 'Boka Möte')}
