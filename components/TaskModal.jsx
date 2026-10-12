@@ -22,6 +22,16 @@ export default function TaskModal({ task, crew, onClose, onSave, onAssign }) {
     setIsSaving(false);
   };
 
+  const handleToggleCompleted = async () => {
+    if (!task?.id) return;
+    setIsSaving(true);
+    await onSave({
+      id: task.id,
+      completed: !task.isCompleted,
+    });
+    setIsSaving(false);
+  };
+
   const allCrew = [...(crew?.internal || []), ...(crew?.freelancers || [])];
 
   return (
@@ -30,14 +40,21 @@ export default function TaskModal({ task, crew, onClose, onSave, onAssign }) {
       onClick={onClose}
     >
       <div 
-        className="bg-slate-900/90 border border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
+        className="bg-slate-900/95 border border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 border-b border-white/10 bg-white/5 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-white">
-            {isNew ? 'Skapa ny uppgift' : 'Uppgift'}
-          </h2>
-          {task && task.status && (
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-white">
+              {isNew ? 'Skapa ny uppgift' : 'Uppgift'}
+            </h2>
+            {task?.isCompleted && (
+              <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-semibold">
+                ✓ Klar
+              </span>
+            )}
+          </div>
+          {task && task.status && !task.isCompleted && (
             <span className="px-3 py-1 bg-white/10 text-white/80 rounded-lg text-sm font-medium">
               {task.status}
             </span>
@@ -77,62 +94,77 @@ export default function TaskModal({ task, crew, onClose, onSave, onAssign }) {
           </div>
 
           <div className="pt-4 border-t border-white/10">
-              <label className="block text-white/60 text-sm font-medium mb-4">Tilldelad Personal</label>
-              <div className="space-y-2 mb-4">
-                {(task?.assignedCrew || []).map(ac => (
-                  <div key={ac.crewId} className="flex justify-between items-center bg-white/[0.04] p-3 rounded-lg border border-white/5">
-                    <span className="text-white font-medium">{ac.name}</span>
-                    <span className="text-green-400 bg-green-500/10 px-2 py-0.5 rounded text-xs font-bold uppercase">Tilldelad</span>
+            <label className="block text-white/60 text-sm font-medium mb-4">Tilldelad Personal</label>
+            <div className="space-y-2 mb-4">
+              {(task?.assignedCrew || []).map(ac => (
+                <div key={ac.crewId} className="flex justify-between items-center bg-white/[0.04] p-3 rounded-lg border border-white/5">
+                  <span className="text-white font-medium">{ac.name}</span>
+                  <span className="text-green-400 bg-green-500/10 px-2 py-0.5 rounded text-xs font-bold uppercase">Tilldelad</span>
+                </div>
+              ))}
+              {pendingAssignments.map(crewId => {
+                const c = allCrew.find(x => x.id === crewId);
+                if (!c) return null;
+                return (
+                  <div key={crewId} className="flex justify-between items-center bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
+                    <span className="text-blue-200 font-medium">{c.name}</span>
+                    <button onClick={() => setPendingAssignments(prev => prev.filter(id => id !== crewId))} className="text-blue-400 hover:text-blue-300 text-xs uppercase font-bold">Ångra</button>
                   </div>
-                ))}
-                {pendingAssignments.map(crewId => {
-                  const c = allCrew.find(x => x.id === crewId);
-                  if (!c) return null;
-                  return (
-                    <div key={crewId} className="flex justify-between items-center bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
-                      <span className="text-blue-200 font-medium">{c.name}</span>
-                      <button onClick={() => setPendingAssignments(prev => prev.filter(id => id !== crewId))} className="text-blue-400 hover:text-blue-300 text-xs uppercase font-bold">Ångra</button>
-                    </div>
-                  );
-                })}
-                {(!task?.assignedCrew?.length && pendingAssignments.length === 0) && (
-                  <div className="text-white/40 text-sm italic">Ingen tilldelad än.</div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 mt-4">
-                {allCrew.map(c => {
-                  const isAlreadyAssigned = task?.assignedCrew?.some(ac => ac.crewId === c.id);
-                  const isPending = pendingAssignments.includes(c.id);
-                  if (isAlreadyAssigned || isPending) return null;
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => {
-                        if (isNew) {
-                          setPendingAssignments(prev => [...prev, c.id]);
-                        } else {
-                          onAssign(task.id, c.id);
-                        }
-                      }}
-                      className="bg-white/5 hover:bg-white/10 active:scale-95 transition-all p-3 rounded-lg border border-white/5 text-left flex justify-between items-center"
-                    >
-                      <span className="text-white text-sm">{c.name}</span>
-                      <span className="text-white/30 text-xl leading-none">+</span>
-                    </button>
-                  );
-                })}
-              </div>
+                );
+              })}
+              {(!task?.assignedCrew?.length && pendingAssignments.length === 0) && (
+                <div className="text-white/40 text-sm italic">Ingen tilldelad än.</div>
+              )}
             </div>
+
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              {allCrew.map(c => {
+                const isAlreadyAssigned = task?.assignedCrew?.some(ac => ac.crewId === c.id);
+                const isPending = pendingAssignments.includes(c.id);
+                if (isAlreadyAssigned || isPending) return null;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      if (isNew) {
+                        setPendingAssignments(prev => [...prev, c.id]);
+                      } else {
+                        onAssign(task.id, c.id);
+                      }
+                    }}
+                    className="bg-white/5 hover:bg-white/10 active:scale-95 transition-all p-3 rounded-lg border border-white/5 text-left flex justify-between items-center"
+                  >
+                    <span className="text-white text-sm">{c.name}</span>
+                    <span className="text-white/30 text-xl leading-none">+</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
-        <div className="p-6 border-t border-white/10 bg-black/20 flex gap-4">
+        <div className="p-6 border-t border-white/10 bg-black/20 flex gap-3">
           <button 
             onClick={onClose}
-            className="flex-1 py-4 bg-white/5 hover:bg-white/10 rounded-xl text-white font-semibold transition-all"
+            className="px-6 py-4 bg-white/5 hover:bg-white/10 rounded-xl text-white font-semibold transition-all"
           >
             Avbryt
           </button>
+
+          {!isNew && (
+            <button
+              onClick={handleToggleCompleted}
+              disabled={isSaving}
+              className={`flex-1 py-4 rounded-xl text-white font-semibold transition-all border ${
+                task?.isCompleted
+                  ? 'bg-amber-600/30 border-amber-500/40 hover:bg-amber-600/50 text-amber-200'
+                  : 'bg-emerald-600/30 border-emerald-500/40 hover:bg-emerald-600/50 text-emerald-200'
+              }`}
+            >
+              {task?.isCompleted ? 'Återöppna uppgift' : '✓ Markera som klar'}
+            </button>
+          )}
+
           <button 
             onClick={handleSave}
             disabled={!name.trim() || isSaving}

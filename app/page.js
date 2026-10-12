@@ -168,6 +168,7 @@ export default function Dashboard() {
   const [screensaverActive, setScreensaverActive] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(null);
   const [settings, setSettings] = useState({
     startTime: '09:50',
     endTime: '19:00',
@@ -199,11 +200,43 @@ export default function Dashboard() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       dispatch({ type: 'FETCH_SUCCESS', payload: data });
+      setRetryCountdown(null);
     } catch (err) {
       console.error('Failed to fetch schedule:', err);
       dispatch({ type: 'FETCH_ERROR', payload: err.message });
     }
   }, [state.weekOffset]);
+
+  // Automatic retry timer on error (retries every 10 seconds)
+  useEffect(() => {
+    if (!state.error) {
+      setRetryCountdown(null);
+      return;
+    }
+
+    setRetryCountdown(10);
+    const timer = setInterval(() => {
+      setRetryCountdown(prev => {
+        if (prev === null || prev <= 1) {
+          fetchData();
+          return 10;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [state.error, fetchData]);
+
+  // Auto-refetch immediately when network comes back online
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('Network online — re-fetching schedule...');
+      fetchData();
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [fetchData]);
 
   // Initial fetch + adaptive interval
   useEffect(() => {
@@ -415,6 +448,32 @@ export default function Dashboard() {
         onCreateMeeting={() => setIsMeetingModalOpen(true)}
       />
 
+      {/* Reconnection Alert Banner if error occurs while having cached data */}
+      {state.error && state.functions.length > 0 && (
+        <div className="bg-amber-500/15 border border-amber-500/30 text-amber-200 px-4 py-2.5 rounded-2xl flex items-center justify-between text-sm backdrop-blur-md shadow-lg shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+            </span>
+            <span className="font-medium">
+              Nätverksanslutningen bröts — behåller sparad vy.
+            </span>
+            {retryCountdown !== null && (
+              <span className="text-amber-300/80 text-xs font-mono bg-black/20 px-2 py-0.5 rounded-md">
+                Återansluter om {retryCountdown}s...
+              </span>
+            )}
+          </div>
+          <button
+            onClick={fetchData}
+            className="px-4 py-1.5 bg-amber-500/25 hover:bg-amber-500/40 active:scale-95 text-amber-100 rounded-xl text-xs font-bold transition-all shadow-sm"
+          >
+            Återanslut nu
+          </button>
+        </div>
+      )}
+
       {/* Main content: Grid + Sidebar */}
       <div className="flex-1 flex gap-3 min-h-0">
         {/* Week Grid */}
@@ -429,13 +488,21 @@ export default function Dashboard() {
           ) : state.error && state.functions.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <div className="text-center glass-panel p-8 max-w-md">
-                <p className="text-red-400 text-xl font-semibold mb-2">Kunde inte ladda data</p>
-                <p className="text-white/50 mb-4">{state.error}</p>
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center text-xl">
+                  ⚠️
+                </div>
+                <p className="text-red-400 text-xl font-semibold mb-2">Kunde inte ansluta till Rentman</p>
+                <p className="text-white/50 text-sm mb-4">{state.error}</p>
+                {retryCountdown !== null && (
+                  <p className="text-blue-400 text-xs font-mono mb-4 animate-pulse">
+                    Återansluter automatiskt om {retryCountdown} sekunder...
+                  </p>
+                )}
                 <button
                   onClick={fetchData}
-                  className="touch-interactive px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-medium transition-colors"
+                  className="touch-interactive px-6 py-3 bg-blue-600 hover:bg-blue-500 active:scale-95 rounded-xl font-medium transition-all shadow-lg"
                 >
-                  Försök igen
+                  Försök nu
                 </button>
               </div>
             </div>

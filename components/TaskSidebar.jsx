@@ -1,7 +1,21 @@
 'use client';
+import { useState } from 'react';
 
 export default function TaskSidebar({ tasks = [], onTaskClick, onCreateTask }) {
-  const sortedTasks = [...tasks].sort((a, b) => {
+  const [activeTab, setActiveTab] = useState('active'); // 'active' | 'completed'
+
+  const activeTasks = tasks.filter(t => !t.isCompleted);
+  const completedTasks = tasks.filter(t => t.isCompleted);
+
+  const currentList = activeTab === 'active' ? activeTasks : completedTasks;
+
+  const sortedTasks = [...currentList].sort((a, b) => {
+    if (activeTab === 'completed') {
+      const aTime = a.completedAt ? new Date(a.completedAt) : 0;
+      const bTime = b.completedAt ? new Date(b.completedAt) : 0;
+      return bTime - aTime;
+    }
+
     if (!a.deadline && !b.deadline) return 0;
     if (!a.deadline) return 1;
     if (!b.deadline) return -1;
@@ -18,73 +32,156 @@ export default function TaskSidebar({ tasks = [], onTaskClick, onCreateTask }) {
 
   return (
     <div className="w-full h-full flex flex-col bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden shrink-0">
+      {/* Header */}
       <div className="p-4 border-b border-white/10 bg-white/[0.02] flex justify-between items-center">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold text-white tracking-wide">Uppgifter</h2>
           <div className="bg-white/10 px-2.5 py-0.5 rounded-full text-sm text-white font-medium">
-            {tasks.length}
+            {activeTasks.length}
           </div>
         </div>
         <button 
           onClick={onCreateTask}
-          className="w-8 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-500 rounded-full text-white font-bold text-lg leading-none active:scale-95 transition-all"
+          title="Skapa ny uppgift"
+          className="w-9 h-9 flex items-center justify-center bg-blue-600 hover:bg-blue-500 rounded-full text-white font-bold text-xl leading-none active:scale-95 transition-all shadow-md"
         >
           +
         </button>
       </div>
+
+      {/* Tabs */}
+      <div className="flex p-2 gap-2 border-b border-white/10 bg-black/20">
+        <button
+          onClick={() => setActiveTab('active')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'active'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <span>Aktiva</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+            activeTab === 'active' ? 'bg-black/25 text-white' : 'bg-white/10 text-white/70'
+          }`}>
+            {activeTasks.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('completed')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'completed'
+              ? 'bg-emerald-600 text-white shadow-md'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <span>Klara denna vecka</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+            activeTab === 'completed' ? 'bg-black/25 text-white' : 'bg-white/10 text-white/70'
+          }`}>
+            {completedTasks.length}
+          </span>
+        </button>
+      </div>
+
+      {/* Task List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-        {sortedTasks.map(task => {
-          const deadline = new Date(task.deadline);
-          const isOverdue = deadline < new Date();
-          const dateStr = deadline.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' });
-          
-          let priorityColor = 'bg-transparent';
-          if (task.priority === 'high') priorityColor = 'bg-red-500';
-          else if (task.priority === 'medium') priorityColor = 'bg-amber-500';
+        {sortedTasks.length === 0 ? (
+          <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-center p-6 text-white/40">
+            {activeTab === 'active' ? (
+              <>
+                <svg className="w-10 h-10 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <p className="text-sm">Inga aktiva uppgifter</p>
+              </>
+            ) : (
+              <>
+                <svg className="w-10 h-10 mb-2 opacity-50 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
+                </svg>
+                <p className="text-sm">Inga avslutade uppgifter denna vecka</p>
+              </>
+            )}
+          </div>
+        ) : (
+          sortedTasks.map(task => {
+            const deadline = task.deadline ? new Date(task.deadline) : null;
+            const isOverdue = deadline && deadline < new Date() && !task.isCompleted;
+            const dateStr = deadline ? deadline.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' }) : null;
+            
+            let priorityColor = 'bg-transparent';
+            if (task.priority === 'high') priorityColor = 'bg-red-500';
+            else if (task.priority === 'medium') priorityColor = 'bg-amber-500';
 
-          const initials = task.assignedCrew?.map(c => {
-            const parts = (c.name || '').split(' ');
-            if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length-1][0]}`.toUpperCase();
-            if (parts.length === 1 && parts[0]) return parts[0].substring(0, 2).toUpperCase();
-            return '?';
-          }).join(', ');
+            const initials = task.assignedCrew?.map(c => {
+              const parts = (c.name || '').split(' ');
+              if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length-1][0]}`.toUpperCase();
+              if (parts.length === 1 && parts[0]) return parts[0].substring(0, 2).toUpperCase();
+              return '?';
+            }).join(', ');
 
-          return (
-            <div 
-              key={task.id} 
-              onClick={() => onTaskClick(task)}
-              className="bg-white/[0.04] hover:bg-white/[0.08] active:scale-[0.98] transition-all cursor-pointer rounded-xl p-3 border border-white/5 flex flex-col gap-2"
-            >
-              <div className="flex justify-between items-start">
-                <span className="font-medium text-sm text-white leading-tight">{task.name}</span>
-                {task.priority !== 'no_priority' && (
-                  <div className={`w-2 h-2 rounded-full mt-1 shrink-0 ${priorityColor}`}></div>
-                )}
-              </div>
-              <div className="flex items-center justify-between text-[11px] mt-1">
-                <span className={`${isOverdue ? 'text-red-400 font-medium' : 'text-white/50'}`}>
-                  {task.deadline ? `Förfaller: ${dateStr}` : 'Inget förfallodatum'}
-                </span>
-                <span className="bg-white/10 px-2 py-0.5 rounded-full text-white/70 font-semibold uppercase tracking-wider text-[9px]">
-                  {task.status || 'Att göra'}
-                </span>
-              </div>
-              
-              {((task.projectName && task.projectName !== 'Unknown Project') || initials) && (
-                <div className="flex justify-between items-center text-[11px] mt-1 pt-2 border-t border-white/5">
-                  <span className="text-white/40 truncate max-w-[150px]">
-                    {task.projectName !== 'Unknown Project' ? task.projectName : ''}
-                  </span>
-                  {initials && (
-                    <span className="bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded font-bold tracking-widest text-[9px]">
-                      [{initials}]
+            return (
+              <div 
+                key={task.id} 
+                onClick={() => onTaskClick(task)}
+                className={`transition-all cursor-pointer rounded-xl p-3 border flex flex-col gap-2 ${
+                  task.isCompleted
+                    ? 'bg-emerald-950/20 border-emerald-500/20 hover:bg-emerald-950/30'
+                    : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/5 active:scale-[0.98]'
+                }`}
+              >
+                <div className="flex justify-between items-start gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {task.isCompleted && (
+                      <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 text-xs font-bold">
+                        ✓
+                      </span>
+                    )}
+                    <span className={`font-medium text-sm leading-tight truncate ${
+                      task.isCompleted ? 'text-white/60 line-through' : 'text-white'
+                    }`}>
+                      {task.name}
                     </span>
+                  </div>
+                  {!task.isCompleted && task.priority !== 'no_priority' && (
+                    <div className={`w-2 h-2 rounded-full mt-1 shrink-0 ${priorityColor}`}></div>
                   )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+
+                <div className="flex items-center justify-between text-[11px] mt-1">
+                  <span className={`${isOverdue ? 'text-red-400 font-medium' : 'text-white/50'}`}>
+                    {task.isCompleted ? (
+                      <span className="text-emerald-400/80 font-medium">Klar</span>
+                    ) : (
+                      dateStr ? `Förfaller: ${dateStr}` : 'Inget förfallodatum'
+                    )}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider text-[9px] ${
+                    task.isCompleted
+                      ? 'bg-emerald-500/20 text-emerald-300'
+                      : 'bg-white/10 text-white/70'
+                  }`}>
+                    {task.isCompleted ? 'Klar' : (task.status || 'Att göra')}
+                  </span>
+                </div>
+                
+                {((task.projectName && task.projectName !== 'Unknown Project') || initials) && (
+                  <div className="flex justify-between items-center text-[11px] mt-1 pt-2 border-t border-white/5">
+                    <span className="text-white/40 truncate max-w-[150px]">
+                      {task.projectName !== 'Unknown Project' ? task.projectName : ''}
+                    </span>
+                    {initials && (
+                      <span className="bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded font-bold tracking-widest text-[9px]">
+                        [{initials}]
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

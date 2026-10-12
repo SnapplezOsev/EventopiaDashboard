@@ -53,167 +53,73 @@ export async function GET(request) {
       return col.startsWith('#') ? col : `#${col}`;
     };
 
-    const projectsResponse = await fetchRentman('/projects');
-    const projects = projectsResponse.data || [];
+    // Safe fetch with fallback so one failing endpoint doesn't break the whole dashboard
+    const safeFetch = async (path) => {
+      try {
+        const res = await fetchRentman(path);
+        return res?.data || [];
+      } catch (err) {
+        console.warn(`Safe fetch warning for ${path}:`, err.message);
+        return [];
+      }
+    };
 
-    const overlappingProjects = projects.filter(p => {
-      if (!p.planperiod_start || !p.planperiod_end) return false;
-      const pStart = new Date(p.planperiod_start);
-      const pEnd = new Date(p.planperiod_end);
-      return pStart <= weekEnd && pEnd >= weekStart;
-    });
-
-    const functions = [];
-    const customerCache = {};
-
-    const [allProjFunctionsRes, allProjCrewRes, allSubprojectsRes, allStatusesRes, allProjVehiclesRes, allVehiclesRes, appointmentsRes, appCrewRes] = await Promise.all([
-      fetchRentman(`/projectfunctions`),
-      fetchRentman(`/projectcrew`),
-      fetchRentman(`/subprojects`),
-      fetchRentman(`/projectstatuses`),
-      fetchRentman(`/projectvehicles`),
-      fetchRentman(`/vehicles`),
-      fetchRentman(`/appointments`),
-      fetchRentman(`/appointmentcrew`)
+    // Parallel fetch with large limit to avoid pagination truncation
+    const [
+      allProjects,
+      allSubprojects,
+      allProjFunctions,
+      allProjCrew,
+      allStatuses,
+      allProjVehicles,
+      allVehicles,
+      allAppointments,
+      allAppCrew,
+      allCrew,
+      allContacts,
+      allTasks,
+      allTaskStatuses,
+      allTaskAssignments
+    ] = await Promise.all([
+      safeFetch('/projects?limit=1000'),
+      safeFetch('/subprojects?limit=1000'),
+      safeFetch('/projectfunctions?limit=1000'),
+      safeFetch('/projectcrew?limit=1000'),
+      safeFetch('/projectstatuses?limit=100'),
+      safeFetch('/projectvehicles?limit=1000'),
+      safeFetch('/vehicles?limit=500'),
+      safeFetch('/appointments?limit=500'),
+      safeFetch('/appointmentcrew?limit=500'),
+      safeFetch('/crew?limit=500'),
+      safeFetch('/contacts?limit=1000'),
+      safeFetch('/tasks?limit=500'),
+      safeFetch('/taskstatuses?limit=100'),
+      safeFetch('/taskassignments?limit=1000')
     ]);
 
-    const allProjFunctions = allProjFunctionsRes?.data || [];
-    const allProjCrew = allProjCrewRes?.data || [];
-    const allSubprojects = allSubprojectsRes?.data || [];
-    const allStatuses = allStatusesRes?.data || [];
-    const allProjVehicles = allProjVehiclesRes?.data || [];
-    const allVehicles = allVehiclesRes?.data || [];
-    const allAppointments = appointmentsRes?.data || [];
-    const allAppCrew = appCrewRes?.data || [];
+    // Lookup maps
+    const projectMap = {};
+    for (const p of allProjects) projectMap[p.id] = p;
 
-    // Pre-map statuses for quick lookup
+    const subprojectMap = {};
+    for (const sp of allSubprojects) subprojectMap[sp.id] = sp;
+
     const projectStatusMap = {};
     for (const st of allStatuses) {
       projectStatusMap[st.id] = st.name || st.displayname;
     }
 
-    for (const project of overlappingProjects) {
-      const projFunctions = allProjFunctions.filter(f => extractId(f.project) === project.id);
-      const projCrew = allProjCrew.filter(c => extractId(c.project) === project.id);
-
-      let customerName = 'Okänd Kund';
-      const customerId = extractId(project.customer);
-      if (customerId) {
-        if (!customerCache[customerId]) {
-          try {
-            const customerRes = await fetchRentman(`/contacts/${customerId}`);
-            customerCache[customerId] = customerRes.data?.name || 'Okänd Kund';
-          } catch (e) {
-            customerCache[customerId] = 'Okänd Kund';
-          }
-        }
-        customerName = customerCache[customerId];
-      }
-
-      let locationName = 'Okänd Plats';
-      const locationId = extractId(project.location);
-      if (locationId) {
-        if (!customerCache[locationId]) {
-          try {
-            const locRes = await fetchRentman(`/contacts/${locationId}`);
-            customerCache[locationId] = locRes.data?.name || 'Okänd Plats';
-          } catch (e) {
-            customerCache[locationId] = 'Okänd Plats';
-          }
-        }
-        locationName = customerCache[locationId];
-      }
-
-      for (const fn of projFunctions) {
-        const assignedCrew = projCrew
-          .filter(c => extractId(c.projectfunction) === fn.id)
-          .map(c => ({
-            projectCrewId: c.id,
-            crewId: extractId(c.crewmember),
-            name: "",
-            category: ""
-          }));
-
-        const subprojectId = extractId(fn.subproject) || project.id;
-        const subproject = allSubprojects.find(sp => sp.id === subprojectId);
-        
-        let statusName = 'Concept';
-        if (subproject && extractId(subproject.status)) {
-          statusName = projectStatusMap[extractId(subproject.status)] || 'Concept';
-        }
-
-        const isCanceled = statusName.toLowerCase().includes('cancel') || statusName.toLowerCase().includes('avbokad');
-        if (isCanceled) continue;
-
-        const vehicleIds = allProjVehicles
-          .filter(pv => extractId(pv.function) === fn.id)
-          .map(pv => extractId(pv.vehicle));
-        const vehicleNames = vehicleIds
-          .map(vid => allVehicles.find(v => v.id === vid)?.name)
-          .filter(Boolean);
-
-        functions.push({
-          id: fn.id,
-          name: fn.name,
-          type: fn.type || 'crew_function',
-          projectId: project.id,
-          projectName: project.name,
-          projectColor: formatHexColor(project.color, '#14B4EC'),
-          customerName,
-          locationName,
-          statusName,
-          vehicleNames,
-          amount: fn.amount || 1,
-          subprojectId,
-          planperiod_start: fn.planperiod_start || project.planperiod_start,
-          planperiod_end: fn.planperiod_end || project.planperiod_end,
-          assignedCrew
-        });
-      }
+    const contactMap = {};
+    for (const c of allContacts) {
+      contactMap[c.id] = c.displayname || c.name || `${c.firstname || ''} ${c.lastname || ''}`.trim() || 'Okänd';
     }
 
-    // Process Appointments
-    const overlappingAppointments = allAppointments.filter(a => {
-      if (!a.start || !a.end) return false;
-      const start = new Date(a.start);
-      const end = new Date(a.end);
-      return start <= weekEnd && end >= weekStart;
-    });
-
-    for (const app of overlappingAppointments) {
-      const assignedCrew = allAppCrew
-        .filter(c => extractId(c.appointment) === app.id)
-        .map(c => ({
-          projectCrewId: c.id,
-          crewId: extractId(c.crew),
-          name: "",
-          category: ""
-        }));
-
-      functions.push({
-        id: `app-${app.id}`,
-        realId: app.id,
-        name: app.name,
-        type: 'appointment',
-        projectId: `app-${app.id}`,
-        projectName: 'Möte',
-        projectColor: formatHexColor(app.color, '#E67E22'),
-        customerName: '',
-        locationName: app.location || '',
-        statusName: 'Confirmed',
-        vehicleNames: [],
-        amount: 1,
-        subprojectId: `app-${app.id}`,
-        planperiod_start: app.start,
-        planperiod_end: app.end,
-        assignedCrew,
-        remark: app.remark || ''
-      });
+    const vehicleMap = {};
+    for (const v of allVehicles) {
+      vehicleMap[v.id] = v.name || v.displayname;
     }
 
-    const allCrewResponse = await fetchRentman('/crew');
-    const allCrew = allCrewResponse.data || [];
-
+    // Process Crew
     const internalFolders = (process.env.DASHBOARD_INTERNAL_FOLDERS || "40").split(',').map(s => parseInt(s.trim()));
     const freelancerFolders = (process.env.DASHBOARD_FREELANCER_FOLDERS || "41,43").split(',').map(s => parseInt(s.trim()));
     const preferredFolder = freelancerFolders[0];
@@ -233,8 +139,8 @@ export async function GET(request) {
       if (c.active === false) continue;
 
       if (internalFolders.includes(folderId)) {
-        crewResult.internal.push(crewMember);
         crewMember.category = 'internal';
+        crewResult.internal.push(crewMember);
       } else if (freelancerFolders.includes(folderId)) {
         crewMember.preferred = folderId === preferredFolder;
         crewMember.category = 'freelancer';
@@ -248,72 +154,247 @@ export async function GET(request) {
       return a.name.localeCompare(b.name);
     });
 
-    for (const fn of functions) {
-      for (const ac of fn.assignedCrew) {
-        ac.name = crewMap[ac.crewId] || 'Unknown';
-        const internal = crewResult.internal.find(c => c.id === ac.crewId);
-        if (internal) ac.category = 'internal';
-        else {
-          const fl = crewResult.freelancers.find(c => c.id === ac.crewId);
-          if (fl) ac.category = 'freelancer';
-          else ac.category = 'hidden';
+    // Helper to check date overlap
+    const isInWeek = (startStr, endStr) => {
+      if (!startStr) return false;
+      const s = new Date(startStr);
+      const e = endStr ? new Date(endStr) : s;
+      return s <= weekEnd && e >= weekStart;
+    };
+
+    const functions = [];
+    const processedSubprojects = new Set();
+    const processedProjects = new Set();
+
+    // 1. Process Project Functions (Functions belong to Subprojects, which link to Projects)
+    for (const fn of allProjFunctions) {
+      const subprojectId = extractId(fn.subproject);
+      const subproject = subprojectMap[subprojectId];
+      const projectId = extractId(fn.project) || (subproject ? extractId(subproject.project) : null);
+      const project = projectMap[projectId] || {};
+
+      // Determine start and end times with robust cascading fallbacks
+      const planStart = fn.planperiod_start || fn.start || fn.usageperiod_start || 
+                        subproject?.planperiod_start || subproject?.usageperiod_start || subproject?.start_date ||
+                        project?.planperiod_start || project?.usageperiod_start || project?.start_date;
+
+      const planEnd = fn.planperiod_end || fn.end || fn.usageperiod_end || 
+                      subproject?.planperiod_end || subproject?.usageperiod_end || subproject?.end_date ||
+                      project?.planperiod_end || project?.usageperiod_end || project?.end_date;
+
+      if (!isInWeek(planStart, planEnd)) continue;
+
+      if (subprojectId) processedSubprojects.add(subprojectId);
+      if (projectId) processedProjects.add(projectId);
+
+      // Status check
+      let statusName = 'Concept';
+      const statusId = extractId(subproject?.status) || extractId(project?.status);
+      if (statusId) {
+        statusName = projectStatusMap[statusId] || 'Concept';
+      }
+      const isCanceled = statusName.toLowerCase().includes('cancel') || statusName.toLowerCase().includes('avbokad');
+      if (isCanceled) continue;
+
+      // Customer & Location
+      const customerId = extractId(project.customer) || extractId(subproject?.customer);
+      const customerName = customerId ? (contactMap[customerId] || 'Okänd Kund') : 'Okänd Kund';
+
+      const locationId = extractId(project.location) || extractId(subproject?.location);
+      const locationName = locationId ? (contactMap[locationId] || 'Okänd Plats') : (project.location_name || subproject?.location_name || 'Okänd Plats');
+
+      // Assigned crew
+      const assignedCrew = allProjCrew
+        .filter(c => extractId(c.projectfunction) === fn.id)
+        .map(c => {
+          const cId = extractId(c.crewmember);
+          const name = crewMap[cId] || 'Unknown';
+          const isInternal = crewResult.internal.some(x => x.id === cId);
+          const isFreelancer = crewResult.freelancers.some(x => x.id === cId);
+          return {
+            projectCrewId: c.id,
+            crewId: cId,
+            name,
+            category: isInternal ? 'internal' : (isFreelancer ? 'freelancer' : 'hidden')
+          };
+        });
+
+      // Vehicles
+      const vehicleNames = allProjVehicles
+        .filter(pv => extractId(pv.function) === fn.id)
+        .map(pv => vehicleMap[extractId(pv.vehicle)])
+        .filter(Boolean);
+
+      functions.push({
+        id: fn.id,
+        name: fn.name || 'Funktion',
+        type: fn.type || 'crew_function',
+        projectId: project.id || projectId || `proj-${fn.id}`,
+        projectName: project.name || subproject?.name || 'Projekt',
+        projectColor: formatHexColor(project.color || subproject?.color, '#14B4EC'),
+        customerName,
+        locationName,
+        statusName,
+        vehicleNames,
+        amount: fn.amount || 1,
+        subprojectId: subprojectId || projectId,
+        planperiod_start: planStart,
+        planperiod_end: planEnd || planStart,
+        assignedCrew
+      });
+    }
+
+    // 2. Also check Subprojects without individual functions that occur this week
+    for (const sp of allSubprojects) {
+      if (processedSubprojects.has(sp.id)) continue;
+      const projectId = extractId(sp.project);
+      const project = projectMap[projectId] || {};
+
+      const spStart = sp.planperiod_start || sp.usageperiod_start || sp.start_date || project?.planperiod_start || project?.usageperiod_start;
+      const spEnd = sp.planperiod_end || sp.usageperiod_end || sp.end_date || project?.planperiod_end || project?.usageperiod_end;
+
+      if (!isInWeek(spStart, spEnd)) continue;
+
+      let statusName = 'Concept';
+      const statusId = extractId(sp.status) || extractId(project?.status);
+      if (statusId) statusName = projectStatusMap[statusId] || 'Concept';
+      if (statusName.toLowerCase().includes('cancel') || statusName.toLowerCase().includes('avbokad')) continue;
+
+      const customerId = extractId(project.customer) || extractId(sp.customer);
+      const customerName = customerId ? (contactMap[customerId] || 'Okänd Kund') : 'Okänd Kund';
+
+      const locationId = extractId(project.location) || extractId(sp.location);
+      const locationName = locationId ? (contactMap[locationId] || 'Okänd Plats') : 'Okänd Plats';
+
+      functions.push({
+        id: `sp-${sp.id}`,
+        realId: sp.id,
+        name: sp.name || project.name || 'Delprojekt',
+        type: 'project',
+        projectId: project.id || sp.id,
+        projectName: project.name || sp.name || 'Projekt',
+        projectColor: formatHexColor(project.color || sp.color, '#14B4EC'),
+        customerName,
+        locationName,
+        statusName,
+        vehicleNames: [],
+        amount: 1,
+        subprojectId: sp.id,
+        planperiod_start: spStart,
+        planperiod_end: spEnd || spStart,
+        assignedCrew: []
+      });
+    }
+
+    // 3. Process Appointments
+    for (const app of allAppointments) {
+      const appStart = app.start || app.planperiod_start;
+      const appEnd = app.end || app.planperiod_end || appStart;
+
+      if (!isInWeek(appStart, appEnd)) continue;
+
+      const assignedCrew = allAppCrew
+        .filter(c => extractId(c.appointment) === app.id)
+        .map(c => {
+          const cId = extractId(c.crew);
+          const name = crewMap[cId] || 'Unknown';
+          const isInternal = crewResult.internal.some(x => x.id === cId);
+          const isFreelancer = crewResult.freelancers.some(x => x.id === cId);
+          return {
+            projectCrewId: c.id,
+            crewId: cId,
+            name,
+            category: isInternal ? 'internal' : (isFreelancer ? 'freelancer' : 'hidden')
+          };
+        });
+
+      functions.push({
+        id: `app-${app.id}`,
+        realId: app.id,
+        name: app.name || 'Möte',
+        type: 'appointment',
+        projectId: `app-${app.id}`,
+        projectName: 'Möte / Bokning',
+        projectColor: formatHexColor(app.color, '#E67E22'),
+        customerName: '',
+        locationName: app.location || '',
+        statusName: 'Confirmed',
+        vehicleNames: [],
+        amount: 1,
+        subprojectId: `app-${app.id}`,
+        planperiod_start: appStart,
+        planperiod_end: appEnd,
+        assignedCrew,
+        remark: app.remark || ''
+      });
+    }
+
+    // 4. Process Tasks (Filtered into Active & Completed this week)
+    const taskStatusMap = {};
+    for (const ts of allTaskStatuses) {
+      const sName = (ts.name || ts.displayname || '').toLowerCase();
+      const isCompleted = sName.includes('complete') || sName.includes('klar') || 
+                          sName.includes('avslut') || sName.includes('done') || sName.includes('färdig');
+      taskStatusMap[ts.id] = { 
+        name: ts.name || ts.displayname || 'Att göra', 
+        color: ts.color || 'F0F3F6',
+        isCompleted
+      };
+    }
+
+    // One week ago boundary for recent completed tasks
+    const oneWeekAgo = new Date(weekStart);
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    const tasks = [];
+
+    for (const t of allTasks) {
+      const sId = extractId(t.status);
+      const statusInfo = taskStatusMap[sId] || { name: 'Att göra', color: 'F0F3F6', isCompleted: false };
+      
+      const isCompleted = Boolean(statusInfo.isCompleted || t.completed === true || t.is_completed === true);
+
+      // If task is completed, ONLY show if it was completed within current week or last 7 days
+      if (isCompleted) {
+        const completedDateStr = t.completed_date || t.finish_date || t.modified || t.deadline;
+        if (completedDateStr) {
+          const compDate = new Date(completedDateStr);
+          // If completed before the last week window, skip it so it doesn't clutter
+          if (compDate < oneWeekAgo) continue;
         }
       }
-    }
 
-    const [tasksRes, taskStatusesRes, taskAssignmentsRes] = await Promise.all([
-      fetchRentman('/tasks'),
-      fetchRentman('/taskstatuses'),
-      fetchRentman('/taskassignments')
-    ]);
+      const pId = extractId(t.project);
+      const proj = projectMap[pId];
 
-    const taskStatuses = taskStatusesRes?.data || [];
-    const tasksData = tasksRes?.data || [];
+      const assigned = allTaskAssignments
+        .filter(ta => extractId(ta.task) === t.id)
+        .map(ta => {
+          const crewId = extractId(ta.crew);
+          const c = [...crewResult.internal, ...crewResult.freelancers].find(x => x.id === crewId);
+          return c ? { crewId, name: c.name } : { crewId };
+        });
 
-    const completedStatusIds = taskStatuses
-      .filter(s => s.name === 'Completed')
-      .map(s => s.id);
+      let sName = statusInfo.name;
+      if (sName === 'To do') sName = 'Att göra';
+      if (sName === 'In progress') sName = 'Pågår';
 
-    const statusMap = {};
-    for (const ts of taskStatuses) {
-      statusMap[ts.id] = { name: ts.name, color: ts.color || 'F0F3F6' };
-    }
-
-    const taskAssignmentsData = taskAssignmentsRes?.data || [];
-
-    const tasks = tasksData
-      .filter(t => !completedStatusIds.includes(extractId(t.status)))
-      .map(t => {
-        const sId = extractId(t.status);
-        const pId = extractId(t.project);
-        const proj = overlappingProjects.find(p => p.id === pId);
-        
-        const assigned = taskAssignmentsData
-          .filter(ta => extractId(ta.task) === t.id)
-          .map(ta => {
-            const crewId = extractId(ta.crew);
-            const c = [...crewResult.internal, ...crewResult.freelancers].find(x => x.id === crewId);
-            return c ? { crewId, name: c.name } : { crewId };
-          });
-
-        let sName = statusMap[sId]?.name || 'Att göra';
-        if (sName === 'To do') sName = 'Att göra';
-        if (sName === 'In progress') sName = 'Pågår';
-
-        return {
-          id: t.id,
-          name: t.name,
-          details: t.details || '',
-          status: sName,
-          statusId: sId,
-          statusColor: formatHexColor(statusMap[sId]?.color, '#F0F3F6'),
-          priority: t.priority || 'no_priority',
-          deadline: t.deadline,
-          projectName: proj ? proj.name : (t.project_name || 'Unknown Project'),
-          itemtype: t.itemtype || 'Project',
-          assignedCrew: assigned
-        };
+      tasks.push({
+        id: t.id,
+        name: t.name,
+        details: t.details || '',
+        status: sName,
+        statusId: sId,
+        statusColor: formatHexColor(statusInfo.color, '#F0F3F6'),
+        isCompleted,
+        completedAt: t.completed_date || t.modified || null,
+        priority: t.priority || 'no_priority',
+        deadline: t.deadline,
+        projectName: proj ? proj.name : (t.project_name || ''),
+        itemtype: t.itemtype || 'Project',
+        assignedCrew: assigned
       });
+    }
 
     return NextResponse.json({
       weekStart: weekStartStr,
