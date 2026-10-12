@@ -59,8 +59,8 @@ header "Eventopia Dashboard — Installation"
 # ============================================================================
 header "Steg 1/6 — Installerar systempaket"
 
-info "Uppdaterar pacman..."
-pacman -Syu --noconfirm
+info "Installerar nödvändiga paket..."
+info "(Tips: kör 'sudo pacman -Syu' separat först om systemet inte är uppdaterat)"
 
 PACKAGES=(nodejs npm git chromium xorg-server xorg-xinit xorg-xset)
 for pkg in "${PACKAGES[@]}"; do
@@ -68,7 +68,7 @@ for pkg in "${PACKAGES[@]}"; do
         success "$pkg redan installerat"
     else
         info "Installerar $pkg..."
-        pacman -S --noconfirm "$pkg"
+        pacman -S --needed --noconfirm "$pkg"
         success "$pkg installerat"
     fi
 done
