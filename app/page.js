@@ -171,13 +171,70 @@ export default function Dashboard() {
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [retryCountdown, setRetryCountdown] = useState(null);
   const [settings, setSettings] = useState({
-    startTime: '09:50',
+    startTime: '07:00',
     endTime: '19:00',
-    wakeDuration: 1
+    wakeDuration: 2
   });
   const screensaverTimerRef = useRef(null);
   const wakeTimeoutRef = useRef(null);
   const forceSleepRef = useRef(false);
+
+  const isAnyModalOpenRef = useRef(false);
+  isAnyModalOpenRef.current = isSettingsModalOpen || isMeetingModalOpen || state.isTaskModalOpen || Boolean(state.selectedFunction);
+
+  // Idle reset function: called on ANY user interaction when awake
+  const resetIdleTimer = useCallback(() => {
+    if (wakeTimeoutRef.current) {
+      clearTimeout(wakeTimeoutRef.current);
+      wakeTimeoutRef.current = null;
+    }
+
+    // If screensaver is currently showing, don't schedule sleep
+    if (screensaverActive) return;
+
+    // Check if we are outside office hours or in manual sleep mode
+    const outsideOfficeHours = shouldShowScreensaver(settings);
+    if (outsideOfficeHours || forceSleepRef.current) {
+      const minutes = Math.max(1, Number(settings?.wakeDuration) || 2);
+      const durationMs = minutes * 60 * 1000;
+
+      wakeTimeoutRef.current = setTimeout(() => {
+        wakeTimeoutRef.current = null;
+        // Never put the screen to sleep if a modal is open!
+        if (isAnyModalOpenRef.current) {
+          resetIdleTimer();
+          return;
+        }
+        setScreensaverActive(true);
+      }, durationMs);
+    }
+  }, [screensaverActive, settings]);
+
+  // Global activity listener (click, touch, pointer, keydown) to keep screen awake on interaction
+  useEffect(() => {
+    const onActivity = () => {
+      if (!screensaverActive) {
+        resetIdleTimer();
+      }
+    };
+
+    window.addEventListener('pointerdown', onActivity, { passive: true });
+    window.addEventListener('touchstart', onActivity, { passive: true });
+    window.addEventListener('keydown', onActivity, { passive: true });
+
+    // Initialize the idle timer
+    resetIdleTimer();
+
+    return () => {
+      window.removeEventListener('pointerdown', onActivity);
+      window.removeEventListener('touchstart', onActivity);
+      window.removeEventListener('keydown', onActivity);
+      if (wakeTimeoutRef.current) {
+        clearTimeout(wakeTimeoutRef.current);
+        wakeTimeoutRef.current = null;
+      }
+    };
+  }, [screensaverActive, resetIdleTimer]);
 
   useEffect(() => {
     const saved = localStorage.getItem('dashboard_settings');
@@ -190,7 +247,12 @@ export default function Dashboard() {
     setSettings(newSettings);
     localStorage.setItem('dashboard_settings', JSON.stringify(newSettings));
     setIsSettingsModalOpen(false);
-  }, []);
+    if (wakeTimeoutRef.current) {
+      clearTimeout(wakeTimeoutRef.current);
+      wakeTimeoutRef.current = null;
+    }
+    resetIdleTimer();
+  }, [resetIdleTimer]);
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -258,42 +320,41 @@ export default function Dashboard() {
     return () => clearInterval(intervalId);
   }, [fetchData]);
 
-  // Screensaver logic
+  // Periodic screensaver schedule check (every 1 minute)
   useEffect(() => {
-    const checkScreensaver = () => {
+    const checkSchedule = () => {
       if (forceSleepRef.current) return; // Stay asleep if manually triggered
 
-      if (shouldShowScreensaver(settings) && !wakeTimeoutRef.current) {
-        setScreensaverActive(true);
-      } else if (!shouldShowScreensaver(settings) && !wakeTimeoutRef.current) {
+      if (shouldShowScreensaver(settings)) {
+        if (!wakeTimeoutRef.current && !screensaverActive) {
+          if (!isAnyModalOpenRef.current) {
+            setScreensaverActive(true);
+          }
+        }
+      } else {
+        // Within office hours: wake up and cancel any sleep timeout
+        if (wakeTimeoutRef.current) {
+          clearTimeout(wakeTimeoutRef.current);
+          wakeTimeoutRef.current = null;
+        }
         setScreensaverActive(false);
       }
     };
 
-    checkScreensaver();
-    screensaverTimerRef.current = setInterval(checkScreensaver, 60 * 1000);
+    checkSchedule();
+    screensaverTimerRef.current = setInterval(checkSchedule, 60 * 1000);
 
     return () => {
       if (screensaverTimerRef.current) clearInterval(screensaverTimerRef.current);
-      if (wakeTimeoutRef.current) clearTimeout(wakeTimeoutRef.current);
     };
-  }, [settings]);
+  }, [settings, screensaverActive]);
 
   // Handle screensaver wake
   const handleWake = useCallback(() => {
     setScreensaverActive(false);
     forceSleepRef.current = false;
-    if (wakeTimeoutRef.current) clearTimeout(wakeTimeoutRef.current);
-
-    const durationMs = (settings.wakeDuration || 1) * 60 * 1000;
-    
-    wakeTimeoutRef.current = setTimeout(() => {
-      wakeTimeoutRef.current = null;
-      if (shouldShowScreensaver(settings)) {
-        setScreensaverActive(true);
-      }
-    }, durationMs);
-  }, [settings]);
+    resetIdleTimer();
+  }, [resetIdleTimer]);
 
   // Handle week navigation
   const handleWeekChange = useCallback((delta) => {

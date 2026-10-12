@@ -81,20 +81,20 @@ export async function GET(request) {
       allTaskStatuses,
       allTaskAssignments
     ] = await Promise.all([
-      safeFetch('/projects?limit=1000'),
-      safeFetch('/subprojects?limit=1000'),
-      safeFetch('/projectfunctions?limit=1000'),
-      safeFetch('/projectcrew?limit=1000'),
+      safeFetch('/projects?limit=1000&sort=-id'),
+      safeFetch('/subprojects?limit=1000&sort=-id'),
+      safeFetch('/projectfunctions?limit=1000&sort=-id'),
+      safeFetch('/projectcrew?limit=1000&sort=-id'),
       safeFetch('/projectstatuses?limit=100'),
-      safeFetch('/projectvehicles?limit=1000'),
+      safeFetch('/projectvehicles?limit=1000&sort=-id'),
       safeFetch('/vehicles?limit=500'),
-      safeFetch('/appointments?limit=500'),
-      safeFetch('/appointmentcrew?limit=500'),
+      safeFetch('/appointments?limit=500&sort=-id'),
+      safeFetch('/appointmentcrew?limit=500&sort=-id'),
       safeFetch('/crew?limit=500'),
       safeFetch('/contacts?limit=1000'),
-      safeFetch('/tasks?limit=500'),
+      safeFetch('/tasks?limit=500&sort=-id'),
       safeFetch('/taskstatuses?limit=100'),
-      safeFetch('/taskassignments?limit=1000')
+      safeFetch('/taskassignments?limit=1000&sort=-id')
     ]);
 
     // Lookup maps

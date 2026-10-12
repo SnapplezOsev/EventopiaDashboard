@@ -34,22 +34,30 @@ export default function SettingsModal({ onClose, onSave, currentSettings }) {
 
   const handleTriggerUpdate = async () => {
     setIsUpdating(true);
-    setUpdateStatusMsg('Startar uppdatering och bygger om appen...');
+    setUpdateStatusMsg('Kontrollerar och påbörjar uppdatering...');
     try {
       const res = await fetch('/api/system/update', { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
-        setUpdateStatusMsg(data.message || 'Uppdatering pågår. Sidan laddas om om 15 sekunder...');
-        // Poll and reload
-        setTimeout(() => {
-          window.location.reload();
-        }, 15000);
+        let secondsLeft = 15;
+        const baseMsg = data.message || 'Uppdatering startad.';
+        setUpdateStatusMsg(`${baseMsg} (Laddar om sidan om ${secondsLeft}s...)`);
+
+        const timer = setInterval(() => {
+          secondsLeft -= 1;
+          if (secondsLeft <= 0) {
+            clearInterval(timer);
+            window.location.reload();
+          } else {
+            setUpdateStatusMsg(`${baseMsg} (Laddar om sidan om ${secondsLeft}s...)`);
+          }
+        }, 1000);
       } else {
         setUpdateStatusMsg(`Fel vid uppdatering: ${data.error || 'Okänt fel'}`);
         setIsUpdating(false);
       }
     } catch (err) {
-      setUpdateStatusMsg('Kunde inte trigga uppdatering: ' + err.message);
+      setUpdateStatusMsg('Kunde inte kontakta servern: ' + err.message);
       setIsUpdating(false);
     }
   };
@@ -198,7 +206,7 @@ export default function SettingsModal({ onClose, onSave, currentSettings }) {
                 <button
                   type="button"
                   onClick={handleTriggerUpdate}
-                  disabled={isUpdating}
+                  disabled={isUpdating || isCheckingUpdate}
                   className={`flex-1 py-3 px-4 active:scale-95 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-md ${
                     updateInfo?.hasUpdate
                       ? 'bg-emerald-600 hover:bg-emerald-500'

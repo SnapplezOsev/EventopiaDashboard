@@ -65,37 +65,44 @@ export async function GET() {
 export async function POST() {
   try {
     const isLinux = process.platform === 'linux';
-    const updateScriptPath = '/opt/eventopia-dashboard/deploy/update.sh';
+    const isDocker = fs.existsSync('/.dockerenv');
 
-    if (isLinux && fs.existsSync(updateScriptPath)) {
-      // Trigger the background update script
-      const child = spawn('sudo', [updateScriptPath, '--force'], {
-        detached: true,
-        stdio: 'ignore',
-      });
-      child.unref();
-
+    if (isDocker) {
       return NextResponse.json({
         success: true,
-        message: 'Uppdatering påbörjad! Dashboarden bygger om och startar om automatiskt.',
+        message: 'Dashboarden körs i Docker. Kör "docker compose up -d --build" för att bygga och starta om med senaste koden.',
       });
     }
 
-    // In development or local clone
-    try {
-      const localScript = path.join(process.cwd(), 'deploy/update.sh');
-      if (fs.existsSync(localScript)) {
-        const child = spawn('bash', [localScript, '--force'], {
+    if (isLinux) {
+      const candidates = [
+        '/opt/eventopia-dashboard/deploy/update.sh',
+        path.join(process.cwd(), 'deploy/update.sh'),
+      ];
+      const script = candidates.find(p => fs.existsSync(p));
+
+      if (script) {
+        // Trigger update script with sudo bash
+        const child = spawn('sudo', ['bash', script, '--force'], {
           detached: true,
           stdio: 'ignore',
         });
         child.unref();
+
+        return NextResponse.json({
+          success: true,
+          message: 'Uppdatering påbörjad! NUC:en bygger om appen. Sidan laddas om automatiskt.',
+        });
+      } else {
+        return NextResponse.json({
+          error: 'Kunde inte hitta deploy/update.sh på enheten.',
+        }, { status: 404 });
       }
-    } catch (e) {}
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'Uppdatering startad.',
+      message: 'Lokal miljö (Windows): Uppdatera via "git pull" och "npm run build" / omstart av container.',
     });
   } catch (err) {
     console.error('Trigger update error:', err);
