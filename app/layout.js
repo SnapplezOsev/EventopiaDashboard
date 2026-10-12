@@ -23,6 +23,7 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
         <meta name="theme-color" content="#060918" />
+        <meta name="google" content="notranslate" />
       </head>
       <body className="antialiased">
         {children}
