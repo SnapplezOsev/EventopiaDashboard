@@ -41,3 +41,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Internal & AI agent files
+CLAUDE.md
+AGENTS.md
+handover_document*
+*.md.backup
