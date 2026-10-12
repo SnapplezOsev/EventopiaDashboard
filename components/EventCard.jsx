@@ -1,4 +1,4 @@
-'use client';
+import { getStatusBadgeStyle } from '@/lib/statusUtils';
 
 export default function EventCard({ func, onClick }) {
   const requiredAmount = func.amount || 1;
@@ -20,14 +20,7 @@ export default function EventCard({ func, onClick }) {
     return parts[0].substring(0, 2).toUpperCase();
   }).join(', ') || 'Ingen';
 
-  const statusColorMap = {
-    'Pending': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-    'Confirmed': 'bg-green-500/20 text-green-300 border-green-500/30',
-    'Canceled': 'bg-red-500/20 text-red-300 border-red-500/30',
-    'Concept': 'bg-gray-500/20 text-gray-300 border-gray-500/30',
-    'Inquiry': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  };
-  const projStatusClass = statusColorMap[func.statusName] || 'bg-white/10 text-white/70 border-white/20';
+  const projStatusClass = getStatusBadgeStyle(func.statusName);
 
   return (
     <div 

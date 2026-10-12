@@ -71,6 +71,7 @@ export async function GET(request) {
       allProjFunctions,
       allProjCrew,
       allStatuses,
+      allProjectStatuses,
       allProjVehicles,
       allVehicles,
       allAppointments,
@@ -85,6 +86,7 @@ export async function GET(request) {
       safeFetch('/subprojects?limit=1000&sort=-id'),
       safeFetch('/projectfunctions?limit=1000&sort=-id'),
       safeFetch('/projectcrew?limit=1000&sort=-id'),
+      safeFetch('/statuses?limit=100'),
       safeFetch('/projectstatuses?limit=100'),
       safeFetch('/projectvehicles?limit=1000&sort=-id'),
       safeFetch('/vehicles?limit=500'),
@@ -105,8 +107,11 @@ export async function GET(request) {
     for (const sp of allSubprojects) subprojectMap[sp.id] = sp;
 
     const projectStatusMap = {};
+    for (const st of allProjectStatuses) {
+      projectStatusMap[st.id] = st.displayname || st.name;
+    }
     for (const st of allStatuses) {
-      projectStatusMap[st.id] = st.name || st.displayname;
+      projectStatusMap[st.id] = st.displayname || st.name;
     }
 
     const contactMap = {};
@@ -185,12 +190,14 @@ export async function GET(request) {
       if (projectId) processedProjects.add(projectId);
 
       // Status check
-      let statusName = 'Concept';
+      let statusName = 'Koncept';
       const statusId = extractId(subproject?.status) || extractId(project?.status);
       if (statusId) {
-        statusName = projectStatusMap[statusId] || 'Concept';
+        statusName = projectStatusMap[statusId] || 'Koncept';
       }
-      const isCanceled = statusName.toLowerCase().includes('cancel') || statusName.toLowerCase().includes('avbokad');
+      const isCanceled = statusName.toLowerCase().includes('cancel') || 
+                         statusName.toLowerCase().includes('annuller') || 
+                         statusName.toLowerCase().includes('avbokad');
       if (isCanceled) continue;
 
       // Customer & Location
@@ -273,7 +280,7 @@ export async function GET(request) {
         projectColor: formatHexColor(app.color, '#E67E22'),
         customerName: '',
         locationName: app.location || '',
-        statusName: 'Confirmed',
+        statusName: 'Bekräftad',
         vehicleNames: [],
         amount: 1,
         subprojectId: `app-${app.id}`,
