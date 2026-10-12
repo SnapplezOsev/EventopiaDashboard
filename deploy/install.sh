@@ -62,7 +62,7 @@ header "Steg 1/6 — Installerar systempaket"
 info "Installerar nödvändiga paket..."
 info "(Tips: kör 'sudo pacman -Syu' separat först om systemet inte är uppdaterat)"
 
-PACKAGES=(nodejs npm git chromium xorg-server xorg-xinit xorg-xset)
+PACKAGES=(nodejs npm git rsync chromium xorg-server xorg-xinit xorg-xset xf86-input-libinput)
 for pkg in "${PACKAGES[@]}"; do
     if pacman -Qi "$pkg" &>/dev/null; then
         success "$pkg redan installerat"
@@ -108,7 +108,12 @@ if [[ -d "$PROJECT_ROOT/.git" ]]; then
     if [[ "$PROJECT_ROOT" != "$APP_DIR" ]]; then
         info "Kopierar projekt till $APP_DIR..."
         mkdir -p "$APP_DIR"
-        rsync -a --exclude='node_modules' --exclude='.next' "$PROJECT_ROOT/" "$APP_DIR/"
+        if command -v rsync &>/dev/null; then
+            rsync -a --exclude='node_modules' --exclude='.next' "$PROJECT_ROOT/" "$APP_DIR/"
+        else
+            cp -a "$PROJECT_ROOT/." "$APP_DIR/"
+            rm -rf "$APP_DIR/node_modules" "$APP_DIR/.next"
+        fi
         success "Projekt kopierat till $APP_DIR"
     fi
     
