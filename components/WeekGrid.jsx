@@ -60,15 +60,22 @@ export default function WeekGrid({ functions = [], weekStart, onFunctionClick })
           const currentDayEnd = new Date(day);
           currentDayEnd.setHours(23, 59, 59, 999);
 
-          // For appointments (meetings): strictly match the specific day
-          if (f.type === 'appointment') {
-            const startDay = new Date(start);
-            startDay.setHours(0, 0, 0, 0);
-            return startDay.getTime() === currentDayStart.getTime();
+          // Check if event starts on this calendar day in local time
+          const startsToday = (
+            start.getFullYear() === day.getFullYear() &&
+            start.getMonth() === day.getMonth() &&
+            start.getDate() === day.getDate()
+          );
+          if (startsToday) return true;
+
+          // If it started earlier and runs into today:
+          // Only show it if it continues past 04:00 AM today (to avoid yesterday's late night shifts from cluttering today)
+          if (start < currentDayStart && end > currentDayStart) {
+            const endHour = end.getHours() + (end.getMinutes() / 60);
+            return endHour > 4 || end > currentDayEnd;
           }
 
-          // For project functions: check if date range overlaps this day
-          return (start <= currentDayEnd && end >= currentDayStart);
+          return false;
         }).sort((a, b) => new Date(a.planperiod_start) - new Date(b.planperiod_start));
 
         const unassignedCount = dayFunctions.filter(f => !f.assignedCrew || f.assignedCrew.length < (f.amount || 1)).length;

@@ -173,15 +173,12 @@ export async function GET(request) {
       const projectId = extractId(fn.project) || (subproject ? extractId(subproject.project) : null);
       const project = projectMap[projectId] || {};
 
-      // Determine start and end times with robust cascading fallbacks
-      const planStart = fn.planperiod_start || fn.start || fn.usageperiod_start || 
-                        subproject?.planperiod_start || subproject?.usageperiod_start || subproject?.start_date ||
-                        project?.planperiod_start || project?.usageperiod_start || project?.start_date;
+      // Functions MUST have an explicit schedule time (planperiod or usageperiod or start)
+      // Unscheduled functions without dates should not inherit multi-week subproject spans
+      const planStart = fn.planperiod_start || fn.usageperiod_start || fn.start;
+      const planEnd = fn.planperiod_end || fn.usageperiod_end || fn.end || planStart;
 
-      const planEnd = fn.planperiod_end || fn.end || fn.usageperiod_end || 
-                      subproject?.planperiod_end || subproject?.usageperiod_end || subproject?.end_date ||
-                      project?.planperiod_end || project?.usageperiod_end || project?.end_date;
-
+      if (!planStart) continue;
       if (!isInWeek(planStart, planEnd)) continue;
 
       if (subprojectId) processedSubprojects.add(subprojectId);
@@ -241,48 +238,6 @@ export async function GET(request) {
         planperiod_start: planStart,
         planperiod_end: planEnd || planStart,
         assignedCrew
-      });
-    }
-
-    // 2. Also check Subprojects without individual functions that occur this week
-    for (const sp of allSubprojects) {
-      if (processedSubprojects.has(sp.id)) continue;
-      const projectId = extractId(sp.project);
-      const project = projectMap[projectId] || {};
-
-      const spStart = sp.planperiod_start || sp.usageperiod_start || sp.start_date || project?.planperiod_start || project?.usageperiod_start;
-      const spEnd = sp.planperiod_end || sp.usageperiod_end || sp.end_date || project?.planperiod_end || project?.usageperiod_end;
-
-      if (!isInWeek(spStart, spEnd)) continue;
-
-      let statusName = 'Concept';
-      const statusId = extractId(sp.status) || extractId(project?.status);
-      if (statusId) statusName = projectStatusMap[statusId] || 'Concept';
-      if (statusName.toLowerCase().includes('cancel') || statusName.toLowerCase().includes('avbokad')) continue;
-
-      const customerId = extractId(project.customer) || extractId(sp.customer);
-      const customerName = customerId ? (contactMap[customerId] || 'Okänd Kund') : 'Okänd Kund';
-
-      const locationId = extractId(project.location) || extractId(sp.location);
-      const locationName = locationId ? (contactMap[locationId] || 'Okänd Plats') : 'Okänd Plats';
-
-      functions.push({
-        id: `sp-${sp.id}`,
-        realId: sp.id,
-        name: sp.name || project.name || 'Delprojekt',
-        type: 'project',
-        projectId: project.id || sp.id,
-        projectName: project.name || sp.name || 'Projekt',
-        projectColor: formatHexColor(project.color || sp.color, '#14B4EC'),
-        customerName,
-        locationName,
-        statusName,
-        vehicleNames: [],
-        amount: 1,
-        subprojectId: sp.id,
-        planperiod_start: spStart,
-        planperiod_end: spEnd || spStart,
-        assignedCrew: []
       });
     }
 
