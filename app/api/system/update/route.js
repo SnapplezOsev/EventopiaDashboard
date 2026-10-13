@@ -117,11 +117,17 @@ export async function POST() {
           error: null
         });
 
-        // Trigger update script with sudo bash
-        const child = spawn('sudo', ['bash', script, '--force']);
+        // Trigger update script directly so sudo matches sudoers path
+        const child = spawn('sudo', [script, '--force'], {
+          detached: true,
+          stdio: ['ignore', 'pipe', 'pipe']
+        });
         let childErr = '';
         child.stderr?.on('data', (d) => {
           childErr += d.toString();
+        });
+        child.stdout?.on('data', (d) => {
+          console.log('[updater]', d.toString().trim());
         });
         child.on('error', (err) => {
           setUpdateStatus({
@@ -137,7 +143,7 @@ export async function POST() {
             setUpdateStatus({
               status: 'error',
               stage: 'failed',
-              message: `Uppdateringsskriptet avbröts (kod ${code}): ${childErr.trim() || 'Saknas sudo utan lösenord för eventopia?'}`,
+              message: `Uppdateringsskriptet avbröts (kod ${code}): ${childErr.trim() || 'Saknas sudo-behörighet? Kör sudo bash deploy/configure.sh via SSH.'}`,
               progress: 0,
               error: childErr.trim() || `Exit code ${code}`,
             });

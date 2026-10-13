@@ -206,16 +206,26 @@ export async function GET(request) {
         // Unscheduled function without explicit dates (duration only or interval from time period/subproject)
         const spStart = subproject?.planperiod_start || subproject?.usageperiod_start || project?.planperiod_start || project?.usageperiod_start;
         const spEnd = subproject?.planperiod_end || subproject?.usageperiod_end || project?.planperiod_end || project?.usageperiod_end || spStart;
-        if (!spStart || !isInWeek(spStart, spEnd)) {
-          continue; // Does not belong to this week's projects
+        
+        // If project dates exist but are outside this week, skip
+        if (spStart && !isInWeek(spStart, spEnd)) {
+          continue;
         }
+
         isUnscheduled = true;
-        intervalStart = spStart;
-        intervalEnd = spEnd;
-        // Position it on the project's start date, clamped to current week
-        const spStartDate = new Date(spStart);
-        planStart = spStartDate < weekStart ? weekStart.toISOString() : spStart;
-        planEnd = spEnd;
+        if (spStart && isInWeek(spStart, spEnd)) {
+          intervalStart = spStart;
+          intervalEnd = spEnd;
+          const spStartDate = new Date(spStart);
+          planStart = spStartDate < weekStart ? weekStart.toISOString() : spStart;
+          planEnd = spEnd;
+        } else {
+          // No timeframe/interval set: keep it for the sidebar, but not with an interval
+          intervalStart = null;
+          intervalEnd = null;
+          planStart = weekStart.toISOString();
+          planEnd = weekStart.toISOString();
+        }
       } else {
         if (!isInWeek(planStart, planEnd)) continue;
         intervalStart = planStart;

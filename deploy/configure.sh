@@ -36,8 +36,9 @@ fi
 
 # Se till att sudoers-behörighet finns för att webbgränssnittet ska kunna uppdatera
 if [[ $EUID -eq 0 && -d "/etc/sudoers.d" ]]; then
+    chmod +x "${APP_DIR}/deploy/update.sh" 2>/dev/null || true
     SUDOERS_FILE="/etc/sudoers.d/${APP_NAME}"
-    echo "eventopia ALL=(ALL) NOPASSWD: ${APP_DIR}/deploy/update.sh, /usr/bin/bash ${APP_DIR}/deploy/update.sh, /usr/bin/systemctl" > "$SUDOERS_FILE"
+    echo "eventopia ALL=(ALL) NOPASSWD: ${APP_DIR}/deploy/update.sh, /usr/bin/bash ${APP_DIR}/deploy/update.sh, /bin/bash ${APP_DIR}/deploy/update.sh, /usr/bin/systemctl, /bin/systemctl" > "$SUDOERS_FILE"
     chmod 0440 "$SUDOERS_FILE"
 fi
 

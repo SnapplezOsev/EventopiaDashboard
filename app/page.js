@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useReducer, useCallback, useRef } from 'react';
+import { useState, useEffect, useReducer, useCallback, useMemo, useRef } from 'react';
 import Header from '@/components/Header';
 import WeekGrid from '@/components/WeekGrid';
 import TaskSidebar from '@/components/TaskSidebar';
@@ -182,7 +182,8 @@ export default function Dashboard() {
   const [settings, setSettings] = useState({
     startTime: '07:00',
     endTime: '19:00',
-    wakeDuration: 2
+    wakeDuration: 2,
+    showUnscheduledInGrid: false
   });
   const screensaverTimerRef = useRef(null);
   const wakeTimeoutRef = useRef(null);
@@ -262,6 +263,14 @@ export default function Dashboard() {
     }
     resetIdleTimer();
   }, [resetIdleTimer]);
+
+  const handleToggleUnscheduledInGrid = useCallback(() => {
+    setSettings(prev => {
+      const next = { ...prev, showUnscheduledInGrid: !prev?.showUnscheduledInGrid };
+      localStorage.setItem('dashboard_settings', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -546,6 +555,18 @@ export default function Dashboard() {
   // Compute weekStart as a Date for the Header
   const weekStartDate = state.weekStart ? new Date(state.weekStart) : new Date();
 
+  // Filter functions for the week grid based on settings & interval rules
+  const gridFunctions = useMemo(() => {
+    const showUnscheduled = Boolean(settings?.showUnscheduledInGrid);
+    return state.functions.filter(f => {
+      if (!f.isUnscheduled) return true;
+      // If unscheduled:
+      // 1. Must be enabled by user setting/toggle
+      // 2. Must be within an interval timeframe (never show in grid if no interval)
+      return showUnscheduled && Boolean(f.hasIntervalDuration);
+    });
+  }, [state.functions, settings?.showUnscheduledInGrid]);
+
   return (
     <div className="h-screen w-screen overflow-hidden p-4 flex flex-col gap-3">
       {/* Header */}
@@ -555,6 +576,9 @@ export default function Dashboard() {
         onCreateMeeting={() => setIsMeetingModalOpen(true)}
         pendingSyncCount={state.pendingRentmanSync?.length || 0}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}
+        showUnscheduledInGrid={Boolean(settings?.showUnscheduledInGrid)}
+        onToggleUnscheduledInGrid={handleToggleUnscheduledInGrid}
+        unscheduledCount={state.unscheduledFunctions?.length || 0}
       />
 
       {/* Reconnection Alert Banner if error occurs while having cached data */}
@@ -617,7 +641,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <WeekGrid
-              functions={state.functions}
+              functions={gridFunctions}
               weekStart={state.weekStart}
               onFunctionClick={handleFunctionClick}
             />

@@ -269,6 +269,13 @@ WantedBy=timers.target
 EOF
 success "Auto-uppdaterings-tjänst och timer skapad (var ${UPDATE_INTERVAL})"
 
+# Ge webbgränssnittet behörighet att köra uppdateringsskriptet via sudo
+chmod +x "${APP_DIR}/deploy/update.sh" 2>/dev/null || true
+if [[ -d "/etc/sudoers.d" ]]; then
+    echo "eventopia ALL=(ALL) NOPASSWD: ${APP_DIR}/deploy/update.sh, /usr/bin/bash ${APP_DIR}/deploy/update.sh, /bin/bash ${APP_DIR}/deploy/update.sh, /usr/bin/systemctl, /bin/systemctl" > "/etc/sudoers.d/${APP_NAME}"
+    chmod 0440 "/etc/sudoers.d/${APP_NAME}"
+fi
+
 # --- Chromium Kiosk ---
 cat > /etc/systemd/system/${APP_NAME}-kiosk.service << EOF
 [Unit]

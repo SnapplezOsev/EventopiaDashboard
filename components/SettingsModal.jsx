@@ -5,6 +5,7 @@ export default function SettingsModal({ onClose, onSave, currentSettings }) {
   const [startTime, setStartTime] = useState(currentSettings?.startTime || '09:50');
   const [endTime, setEndTime] = useState(currentSettings?.endTime || '19:00');
   const [wakeDuration, setWakeDuration] = useState(currentSettings?.wakeDuration || 1);
+  const [showUnscheduledInGrid, setShowUnscheduledInGrid] = useState(Boolean(currentSettings?.showUnscheduledInGrid));
 
   // Update State
   const [updateInfo, setUpdateInfo] = useState(null);
@@ -219,7 +220,8 @@ export default function SettingsModal({ onClose, onSave, currentSettings }) {
     onSave({
       startTime,
       endTime,
-      wakeDuration: Number(wakeDuration)
+      wakeDuration: Number(wakeDuration),
+      showUnscheduledInGrid
     });
   };
 
@@ -297,6 +299,38 @@ export default function SettingsModal({ onClose, onSave, currentSettings }) {
               <p className="text-white/30 text-xs mt-2 leading-relaxed">
                 När någon rör skärmen utanför ordinarie tider, hur länge ska den hålla sig vaken innan den somnar om?
               </p>
+            </div>
+          </div>
+
+          {/* Vy & Schemainställningar */}
+          <div className="pt-4 border-t border-white/10">
+            <h3 className="text-white/80 font-semibold mb-3 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <span>👁️</span>
+                <span>Vy & Schemainställningar</span>
+              </span>
+            </h3>
+
+            <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/10 space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showUnscheduledInGrid}
+                  onChange={e => setShowUnscheduledInGrid(e.target.checked)}
+                  className="mt-1 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-white/10 border-white/20 accent-blue-500 cursor-pointer"
+                />
+                <div className="text-xs flex-1">
+                  <span className="font-bold text-white block text-sm">
+                    Visa ej tidsatta funktioner i veckoschemat
+                  </span>
+                  <p className="text-white/50 leading-relaxed mt-0.5">
+                    När detta är avstängt (standard) hålls schemat helt rent och visar enbart fast schemalagda funktioner. Ej tidsatta funktioner visas alltid i sidopanelens flik &quot;⚠️ Ej tidsatta&quot;.
+                  </p>
+                  <p className="text-amber-300/80 text-[11px] mt-1.5 italic">
+                    💡 Funktioner som saknar tidsintervall visas aldrig i schemat, utan enbart i sidopanelen.
+                  </p>
+                </div>
+              </label>
             </div>
           </div>
 
