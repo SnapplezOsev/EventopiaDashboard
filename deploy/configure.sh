@@ -56,11 +56,33 @@ else
     TOKEN_PREVIEW="(ej konfigurerad)"
 fi
 
+CURRENT_CALENDAR_ID=""
+if [[ -f "$APP_DIR/data/calendar-config.json" ]]; then
+    CURRENT_CALENDAR_ID=$(grep -o '"calendarId": *"[^"]*"' "$APP_DIR/data/calendar-config.json" 2>/dev/null | cut -d'"' -f4 || echo "")
+fi
+if [[ -z "$CURRENT_CALENDAR_ID" ]]; then
+    CURRENT_CALENDAR_ID=$(grep "^GOOGLE_CALENDAR_ID=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- || echo "")
+fi
+
+SA_FILE="$APP_DIR/data/google-service-account.json"
+if [[ -f "$SA_FILE" ]]; then
+    SA_EMAIL=$(grep -o '"client_email": *"[^"]*"' "$SA_FILE" 2>/dev/null | cut -d'"' -f4 || echo "")
+    if [[ -n "$SA_EMAIL" ]]; then
+        SA_STATUS="${GREEN}✔ Konfigurerad (${SA_EMAIL})${NC}"
+    else
+        SA_STATUS="${GREEN}✔ Fil hittad${NC}"
+    fi
+else
+    SA_STATUS="${YELLOW}Ej inlagd (data/google-service-account.json)${NC}"
+fi
+
 echo -e "  API-nyckel:            ${TOKEN_PREVIEW}"
 echo -e "  API Base URL:          ${CURRENT_BASE_URL:-https://api.rentman.net}"
 echo -e "  Projektstatus-filter:  ${CURRENT_STATUSES:-1,3,4,5}"
 echo -e "  Interna mappar:        ${CURRENT_INTERNAL:-40}"
 echo -e "  Frilans-mappar:        ${CURRENT_FREELANCER:-41,43}"
+echo -e "  Google Kalender-ID:    ${CURRENT_CALENDAR_ID:-(ej konfigurerad)}"
+echo -e "  Service Account nyckel: ${SA_STATUS}"
 echo ""
 
 # --- Meny ---
@@ -70,7 +92,9 @@ echo "  1) Byta Rentman API-nyckel"
 echo "  2) Ändra API Base URL"
 echo "  3) Ändra projektstatusar"
 echo "  4) Ändra personalmappar"
-echo "  5) Visa hela .env.local"
+echo "  5) Ändra Google Kalender-ID"
+echo "  6) Klistra in Service Account JSON-nyckel (nano)"
+echo "  7) Visa hela .env.local"
 echo "  0) Avsluta"
 echo ""
 read -rp "  Val: " CHOICE
@@ -125,6 +149,40 @@ case "$CHOICE" in
         echo -e "${GREEN}✔ Personalmappar uppdaterade!${NC}"
         ;;
     5)
+        echo ""
+        echo -e "Nuvarande Kalender-ID: ${CURRENT_CALENDAR_ID:-(ingen)}"
+        echo -e "${BOLD}Ange Google Kalender-ID:${NC}"
+        read -rp "  > " NEW_CAL_ID
+        if [[ -n "$NEW_CAL_ID" ]]; then
+            mkdir -p "$APP_DIR/data"
+            if grep -q "^GOOGLE_CALENDAR_ID=" "$ENV_FILE"; then
+                sed -i "s|^GOOGLE_CALENDAR_ID=.*|GOOGLE_CALENDAR_ID=${NEW_CAL_ID}|" "$ENV_FILE"
+            else
+                echo "GOOGLE_CALENDAR_ID=${NEW_CAL_ID}" >> "$ENV_FILE"
+            fi
+            # Även spara i data/calendar-config.json så UI och backend matchar
+            node -e "
+              const fs = require('fs');
+              const p = '$APP_DIR/data/calendar-config.json';
+              let cfg = {};
+              try { cfg = JSON.parse(fs.readFileSync(p, 'utf8')); } catch(e){}
+              cfg.calendarId = '$NEW_CAL_ID';
+              fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf8');
+            " 2>/dev/null || true
+            echo -e "${GREEN}✔ Google Kalender-ID uppdaterat!${NC}"
+        fi
+        ;;
+    6)
+        echo ""
+        echo -e "${BOLD}Service Account JSON-nyckel:${NC}"
+        echo "Öppnar filen i nano så du kan klistra in innehållet."
+        echo "Tryck Ctrl+O och Enter för att spara, sen Ctrl+X för att stänga."
+        mkdir -p "$APP_DIR/data"
+        sleep 2
+        nano "$APP_DIR/data/google-service-account.json"
+        echo -e "${GREEN}✔ Klart!${NC}"
+        ;;
+    7)
         echo ""
         echo -e "${BOLD}Innehåll i .env.local:${NC}"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
