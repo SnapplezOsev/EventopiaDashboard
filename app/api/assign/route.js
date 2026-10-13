@@ -34,7 +34,7 @@ export async function POST(request) {
 
     // Standard Project Function
     // Rentman's Public API is read-only for /projectcrew, so persist locally on the dashboard
-    const localRecord = addLocalAssignment(functionId, crewId);
+    const localRecord = addLocalAssignment(body);
     return NextResponse.json({ success: true, data: localRecord });
   } catch (error) {
     console.error('Assign API Error:', error);

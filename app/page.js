@@ -9,6 +9,7 @@ import TaskModal from '@/components/TaskModal';
 import SettingsModal from '@/components/SettingsModal';
 import MeetingModal from '@/components/MeetingModal';
 import Screensaver from '@/components/Screensaver';
+import RentmanSyncModal from '@/components/RentmanSyncModal';
 
 // --- State Reducer ---
 const initialState = {
@@ -23,6 +24,7 @@ const initialState = {
   selectedTask: null,
   isTaskModalOpen: false,
   weekOffset: 0,
+  pendingRentmanSync: [],
 };
 
 function dashboardReducer(state, action) {
@@ -38,6 +40,7 @@ function dashboardReducer(state, action) {
         tasks: action.payload.tasks || [],
         weekStart: action.payload.weekStart,
         weekEnd: action.payload.weekEnd,
+        pendingRentmanSync: action.payload.pendingRentmanSync || [],
       };
     case 'FETCH_ERROR':
       return { ...state, isLoading: false, error: action.payload };
@@ -85,6 +88,9 @@ function dashboardReducer(state, action) {
           ...f,
           assignedCrew: f.assignedCrew.filter(c => c.projectCrewId !== pcId),
         })),
+        pendingRentmanSync: state.pendingRentmanSync
+          ? state.pendingRentmanSync.filter(p => p.id !== pcId)
+          : [],
         selectedFunction: state.selectedFunction
           ? {
               ...state.selectedFunction,
@@ -168,6 +174,7 @@ export default function Dashboard() {
   const [screensaverActive, setScreensaverActive] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [retryCountdown, setRetryCountdown] = useState(null);
   const [settings, setSettings] = useState({
@@ -180,7 +187,7 @@ export default function Dashboard() {
   const forceSleepRef = useRef(false);
 
   const isAnyModalOpenRef = useRef(false);
-  isAnyModalOpenRef.current = isSettingsModalOpen || isMeetingModalOpen || state.isTaskModalOpen || Boolean(state.selectedFunction);
+  isAnyModalOpenRef.current = isSettingsModalOpen || isMeetingModalOpen || isSyncModalOpen || state.isTaskModalOpen || Boolean(state.selectedFunction);
 
   // Idle reset function: called on ANY user interaction when awake
   const resetIdleTimer = useCallback(() => {
@@ -478,6 +485,13 @@ export default function Dashboard() {
         body: JSON.stringify({
           functionId: state.selectedFunction.id,
           crewId,
+          functionName: state.selectedFunction.name,
+          projectName: state.selectedFunction.projectName,
+          projectColor: state.selectedFunction.projectColor,
+          planperiod_start: state.selectedFunction.planperiod_start,
+          planperiod_end: state.selectedFunction.planperiod_end,
+          crewName: crewMember.name,
+          crewCategory: crewMember.category || (crewMember.folderId === 40 ? 'internal' : 'freelancer'),
         }),
       });
       if (!res.ok) throw new Error('Assignment failed');
@@ -537,6 +551,8 @@ export default function Dashboard() {
         weekStart={weekStartDate}
         onWeekChange={handleWeekChange}
         onCreateMeeting={() => setIsMeetingModalOpen(true)}
+        pendingSyncCount={state.pendingRentmanSync?.length || 0}
+        onOpenSyncModal={() => setIsSyncModalOpen(true)}
       />
 
       {/* Reconnection Alert Banner if error occurs while having cached data */}
@@ -685,6 +701,22 @@ export default function Dashboard() {
           currentSettings={settings}
           onSave={handleSaveSettings}
           onClose={() => setIsSettingsModalOpen(false)}
+        />
+      )}
+
+      {/* Rentman Sync Checklist Modal */}
+      {isSyncModalOpen && (
+        <RentmanSyncModal
+          pendingList={state.pendingRentmanSync || []}
+          onDismiss={async (localId) => {
+            await handleUnassign(localId);
+            fetchData();
+          }}
+          onUnassign={async (localId, isApp, fnId, crewId) => {
+            await handleUnassign(localId, isApp, fnId, crewId);
+            fetchData();
+          }}
+          onClose={() => setIsSyncModalOpen(false)}
         />
       )}
 

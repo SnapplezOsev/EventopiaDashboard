@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { fetchRentman, extractId } from '@/lib/rentman';
-import { getLocalAssignments } from '@/lib/localAssignments';
+import { getLocalAssignments, removeLocalAssignment } from '@/lib/localAssignments';
 
 function getWeekRange(weekStr) {
   let date;
@@ -379,12 +379,42 @@ export async function GET(request) {
       });
     }
 
+    // Auto-clean any local assignments that have now been added in Rentman
+    for (const la of localAssignments) {
+      const isNowInRentman = allProjCrew.some(
+        c => (extractId(c.function) === Number(la.functionId) || extractId(c.projectfunction) === Number(la.functionId)) &&
+             (extractId(c.crewmember) === Number(la.crewId) || extractId(c.crew) === Number(la.crewId))
+      );
+      if (isNowInRentman) {
+        removeLocalAssignment(la.id);
+      }
+    }
+
+    const remainingLocal = getLocalAssignments();
+    const pendingRentmanSync = remainingLocal.map(la => {
+      const matchingFn = functions.find(f => String(f.id) === String(la.functionId));
+      return {
+        id: la.id,
+        functionId: la.functionId,
+        functionName: matchingFn?.name || la.functionName || 'Funktion',
+        projectName: matchingFn?.projectName || la.projectName || 'Projekt',
+        projectColor: matchingFn?.projectColor || la.projectColor || '#14B4EC',
+        planperiod_start: matchingFn?.planperiod_start || la.planperiod_start || null,
+        planperiod_end: matchingFn?.planperiod_end || la.planperiod_end || null,
+        crewId: la.crewId,
+        crewName: la.crewName || crewMap[la.crewId] || 'Okänd',
+        crewCategory: la.crewCategory || 'internal',
+        createdAt: la.createdAt
+      };
+    });
+
     return NextResponse.json({
       weekStart: weekStartStr,
       weekEnd: weekEndStr,
       functions,
       crew: crewResult,
-      tasks
+      tasks,
+      pendingRentmanSync
     });
 
   } catch (error) {

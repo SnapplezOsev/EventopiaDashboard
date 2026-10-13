@@ -1,7 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
 
-export default function Header({ weekStart, onWeekChange, onCreateMeeting }) {
+export default function Header({ 
+  weekStart, 
+  onWeekChange, 
+  onCreateMeeting,
+  pendingSyncCount = 0,
+  onOpenSyncModal
+}) {
   const [time, setTime] = useState(new Date());
   
   useEffect(() => {
@@ -25,31 +31,53 @@ export default function Header({ weekStart, onWeekChange, onCreateMeeting }) {
   return (
     <header className="flex items-center justify-between px-6 py-3 bg-white/[0.03] backdrop-blur-md border-b border-white/10 rounded-b-2xl shadow-lg relative overflow-hidden">
       <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-      <div className="w-1/3 flex items-center justify-start gap-4">
+      <div className="w-5/12 flex items-center justify-start gap-3">
         <button
           onClick={onCreateMeeting}
-          className="bg-orange-600/80 hover:bg-orange-500 text-white font-bold py-2.5 px-4 rounded-xl shadow-lg active:scale-95 transition-all flex items-center gap-2 border border-orange-400/30"
+          className="bg-orange-600/80 hover:bg-orange-500 text-white font-bold py-2 px-3.5 rounded-xl shadow-lg active:scale-95 transition-all flex items-center gap-1.5 border border-orange-400/30 text-xs shrink-0"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
           Boka Möte
         </button>
-        <div className="flex items-center space-x-3 bg-white/[0.02] p-1 rounded-xl border border-white/5">
+
+        {/* Rentman Sync Checklist Button */}
+        <button
+          onClick={onOpenSyncModal}
+          className={`py-2 px-3 rounded-xl shadow-lg active:scale-95 transition-all flex items-center gap-1.5 text-xs font-bold border shrink-0 ${
+            pendingSyncCount > 0
+              ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border-amber-500/40 animate-pulse'
+              : 'bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border-white/10'
+          }`}
+          title="Se lista över tilldelningar att föra in i Rentman"
+        >
+          <span className="text-sm">📋</span>
+          <span>Rentman-synk</span>
+          {pendingSyncCount > 0 ? (
+            <span className="bg-amber-400 text-black px-1.5 py-0.2 rounded-full font-black text-[11px]">
+              {pendingSyncCount}
+            </span>
+          ) : (
+            <span className="text-emerald-400 text-xs">✓</span>
+          )}
+        </button>
+
+        <div className="flex items-center space-x-2 bg-white/[0.02] p-1 rounded-xl border border-white/5">
           <button 
             onClick={() => onWeekChange(-1)}
-            className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white shadow-sm"
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white shadow-sm"
             aria-label="Föregående vecka"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
-          <span className="text-lg font-medium text-white px-3">
+          <span className="text-sm font-medium text-white px-2">
             Vecka {weekNum}
           </span>
           <button 
             onClick={() => onWeekChange(1)}
-            className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white shadow-sm"
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white shadow-sm"
             aria-label="Nästa vecka"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
       </div>
