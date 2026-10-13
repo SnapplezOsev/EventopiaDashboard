@@ -7,19 +7,17 @@ export async function POST(request) {
     const pendingAssignments = body.pendingAssignments || [];
     delete body.pendingAssignments;
 
-    // Rentman task schema: name (required), description (optional), deadline (ISO datetime), completed (boolean)
+    // Rentman task schema: name (required), color (required), description (optional), deadline (ISO datetime), completed (boolean)
+    const cleanColor = body.color ? String(body.color).replace('#', '') : '3b82f6';
     const taskPayload = {
       name: body.name,
       description: body.description || body.details || '',
       completed: false,
+      color: cleanColor,
     };
 
     if (body.deadline) {
       taskPayload.deadline = body.deadline.includes('T') ? body.deadline : `${body.deadline}T18:00:00Z`;
-    }
-
-    if (body.color) {
-      taskPayload.color = body.color;
     }
 
     const data = await postRentman('/tasks', taskPayload);
@@ -63,6 +61,9 @@ export async function PUT(request) {
     }
     if (updateData.completed !== undefined) {
       taskPayload.completed = updateData.completed;
+    }
+    if (updateData.color !== undefined) {
+      taskPayload.color = String(updateData.color).replace('#', '');
     }
 
     const data = await putRentman(`/tasks/${id}`, taskPayload);

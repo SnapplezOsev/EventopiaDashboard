@@ -34,6 +34,9 @@ function getWeekRange(weekStr) {
   return { weekStart, weekEnd };
 }
 
+// Module-level in-memory cache to prevent blank screens during transient Rentman API blips
+const scheduleCache = new Map();
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -54,12 +57,16 @@ export async function GET(request) {
       return col.startsWith('#') ? col : `#${col}`;
     };
 
-    // Safe fetch with fallback so one failing endpoint doesn't break the whole dashboard
-    const safeFetch = async (path) => {
+    // Safe fetch with fallback and retry so temporary network/Rentman blips don't break the dashboard
+    const safeFetch = async (path, retries = 1) => {
       try {
         const res = await fetchRentman(path);
         return res?.data || [];
       } catch (err) {
+        if (retries > 0) {
+          await new Promise(r => setTimeout(r, 600));
+          return safeFetch(path, retries - 1);
+        }
         console.warn(`Safe fetch warning for ${path}:`, err.message);
         return [];
       }
@@ -435,14 +442,31 @@ export async function GET(request) {
       };
     });
 
-    return NextResponse.json({
+    const cacheKey = weekParam || 'current';
+
+    // Fallback to cached schedule if fetch returned 0 functions (e.g. transient Rentman lock/blip)
+    if (functions.length === 0 && scheduleCache.has(cacheKey)) {
+      const cached = scheduleCache.get(cacheKey);
+      if (cached && cached.functions && cached.functions.length > 0) {
+        console.warn(`Rentman returned 0 functions — falling back to cached schedule (${cached.functions.length} functions).`);
+        return NextResponse.json({ ...cached, fromCache: true });
+      }
+    }
+
+    const result = {
       weekStart: weekStartStr,
       weekEnd: weekEndStr,
       functions,
       crew: crewResult,
       tasks,
       pendingRentmanSync
-    });
+    };
+
+    if (functions.length > 0) {
+      scheduleCache.set(cacheKey, result);
+    }
+
+    return NextResponse.json(result);
 
   } catch (error) {
     console.error('Schedule API Error:', error);
