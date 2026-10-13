@@ -118,9 +118,30 @@ export async function POST() {
         });
 
         // Trigger update script with sudo bash
-        const child = spawn('sudo', ['bash', script, '--force'], {
-          detached: true,
-          stdio: 'ignore',
+        const child = spawn('sudo', ['bash', script, '--force']);
+        let childErr = '';
+        child.stderr?.on('data', (d) => {
+          childErr += d.toString();
+        });
+        child.on('error', (err) => {
+          setUpdateStatus({
+            status: 'error',
+            stage: 'failed',
+            message: `Kunde inte starta uppdatering: ${err.message}`,
+            progress: 0,
+            error: err.message,
+          });
+        });
+        child.on('exit', (code) => {
+          if (code !== 0) {
+            setUpdateStatus({
+              status: 'error',
+              stage: 'failed',
+              message: `Uppdateringsskriptet avbröts (kod ${code}): ${childErr.trim() || 'Saknas sudo utan lösenord för eventopia?'}`,
+              progress: 0,
+              error: childErr.trim() || `Exit code ${code}`,
+            });
+          }
         });
         child.unref();
 

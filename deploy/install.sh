@@ -310,6 +310,14 @@ WantedBy=graphical.target
 EOF
 success "Kiosk-tjänst skapad"
 
+# --- Skapa sudoers-regel för dashboard-webbuppdatering ---
+mkdir -p /etc/sudoers.d
+cat > /etc/sudoers.d/${APP_NAME} << EOF
+${APP_USER} ALL=(ALL) NOPASSWD: ${APP_DIR}/deploy/update.sh, /usr/bin/bash ${APP_DIR}/deploy/update.sh, /usr/bin/systemctl
+EOF
+chmod 0440 /etc/sudoers.d/${APP_NAME}
+success "Sudoers-regel för webbuppdatering skapad"
+
 # --- Sätt touchscreen-konfiguration ---
 mkdir -p /etc/X11/xorg.conf.d
 cat > /etc/X11/xorg.conf.d/99-touchscreen.conf << EOF

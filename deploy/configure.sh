@@ -34,6 +34,13 @@ if [[ ! -f "$ENV_FILE" ]]; then
     exit 1
 fi
 
+# Se till att sudoers-behörighet finns för att webbgränssnittet ska kunna uppdatera
+if [[ $EUID -eq 0 && -d "/etc/sudoers.d" ]]; then
+    SUDOERS_FILE="/etc/sudoers.d/${APP_NAME}"
+    echo "eventopia ALL=(ALL) NOPASSWD: ${APP_DIR}/deploy/update.sh, /usr/bin/bash ${APP_DIR}/deploy/update.sh, /usr/bin/systemctl" > "$SUDOERS_FILE"
+    chmod 0440 "$SUDOERS_FILE"
+fi
+
 echo ""
 echo -e "${CYAN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${CYAN}${BOLD}  Eventopia Dashboard — Konfiguration${NC}"
