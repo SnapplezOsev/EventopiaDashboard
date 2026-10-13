@@ -6,6 +6,8 @@ services:
     env_file:
       - .env.local
     restart: always
+    volumes:
+      - ./data:/app/data
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000"]
       interval: 30s

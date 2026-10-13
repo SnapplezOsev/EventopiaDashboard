@@ -490,7 +490,7 @@ export default function Dashboard() {
   }, [state.selectedFunction, state.crew, fetchData]);
 
   // Handle crew unassignment
-  const handleUnassign = useCallback(async (projectCrewId, isAppointment = false) => {
+  const handleUnassign = useCallback(async (projectCrewId, isAppointment = false, functionId = null, crewId = null) => {
     dispatch({
       type: 'OPTIMISTIC_UNASSIGN',
       payload: { projectCrewId },
@@ -500,7 +500,12 @@ export default function Dashboard() {
       const res = await fetch('/api/unassign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectCrewId, isAppointment }),
+        body: JSON.stringify({ 
+          projectCrewId, 
+          isAppointment,
+          functionId: functionId || state.selectedFunction?.id,
+          crewId
+        }),
       });
       if (!res.ok) throw new Error('Unassignment failed');
       fetchData();
@@ -508,7 +513,7 @@ export default function Dashboard() {
       console.error('Failed to unassign crew:', err);
       fetchData(); // Revert
     }
-  }, [fetchData]);
+  }, [state.selectedFunction, fetchData]);
 
   // Count events for tomorrow (screensaver display)
   const tomorrowEventCount = (() => {

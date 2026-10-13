@@ -47,3 +47,4 @@ CLAUDE.md
 AGENTS.md
 handover_document*
 *.md.backup
+/data/*.json

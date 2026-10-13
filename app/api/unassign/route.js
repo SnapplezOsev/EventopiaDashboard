@@ -1,31 +1,28 @@
 import { NextResponse } from 'next/server';
 import { deleteRentman } from '@/lib/rentman';
+import { removeLocalAssignment } from '@/lib/localAssignments';
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { projectCrewId, isAppointment } = body;
+    const { projectCrewId, isAppointment, functionId, crewId } = body;
 
-    if (!projectCrewId) {
-      return NextResponse.json({ error: 'projectCrewId is required' }, { status: 400 });
+    if (!projectCrewId && (!functionId || !crewId)) {
+      return NextResponse.json({ error: 'projectCrewId or functionId/crewId is required' }, { status: 400 });
     }
 
-    if (typeof projectCrewId === 'string' && projectCrewId.startsWith('temp-')) {
+    // Always remove from local persistent store if matched
+    removeLocalAssignment(projectCrewId, functionId, crewId);
+
+    if (typeof projectCrewId === 'string' && (projectCrewId.startsWith('temp-') || projectCrewId.startsWith('local-'))) {
       return NextResponse.json({ success: true });
     }
 
     if (isAppointment) {
-      await deleteRentman(`/appointmentcrew/${projectCrewId}`);
-    } else {
-      // Try project crew first, fallback to appointment crew if 404
       try {
-        await deleteRentman(`/projectcrew/${projectCrewId}`);
+        await deleteRentman(`/appointmentcrew/${projectCrewId}`);
       } catch (err) {
-        if (err.message?.includes('404')) {
-          await deleteRentman(`/appointmentcrew/${projectCrewId}`);
-        } else {
-          throw err;
-        }
+        console.warn('Could not delete appointment crew from Rentman:', err.message);
       }
     }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { fetchRentman, extractId } from '@/lib/rentman';
+import { getLocalAssignments } from '@/lib/localAssignments';
 
 function getWeekRange(weekStr) {
   let date;
@@ -170,6 +171,7 @@ export async function GET(request) {
     const functions = [];
     const processedSubprojects = new Set();
     const processedProjects = new Set();
+    const localAssignments = getLocalAssignments();
 
     // 1. Process Project Functions (Functions belong to Subprojects, which link to Projects)
     for (const fn of allProjFunctions) {
@@ -207,11 +209,11 @@ export async function GET(request) {
       const locationId = extractId(project.location) || extractId(subproject?.location);
       const locationName = locationId ? (contactMap[locationId] || 'Okänd Plats') : (project.location_name || subproject?.location_name || 'Okänd Plats');
 
-      // Assigned crew
+      // Assigned crew from Rentman (Rentman uses 'function' or 'projectfunction')
       const assignedCrew = allProjCrew
-        .filter(c => extractId(c.projectfunction) === fn.id)
+        .filter(c => (extractId(c.function) === fn.id || extractId(c.projectfunction) === fn.id))
         .map(c => {
-          const cId = extractId(c.crewmember);
+          const cId = extractId(c.crewmember) || extractId(c.crew);
           const name = crewMap[cId] || 'Unknown';
           const isInternal = crewResult.internal.some(x => x.id === cId);
           const isFreelancer = crewResult.freelancers.some(x => x.id === cId);
@@ -219,9 +221,28 @@ export async function GET(request) {
             projectCrewId: c.id,
             crewId: cId,
             name,
+            source: 'rentman',
             category: isInternal ? 'internal' : (isFreelancer ? 'freelancer' : 'hidden')
           };
         });
+
+      // Merge local assignments created on the dashboard
+      const localForFn = localAssignments.filter(la => String(la.functionId) === String(fn.id));
+      for (const la of localForFn) {
+        if (!assignedCrew.some(ac => ac.crewId === la.crewId)) {
+          const cId = la.crewId;
+          const name = crewMap[cId] || 'Unknown';
+          const isInternal = crewResult.internal.some(x => x.id === cId);
+          const isFreelancer = crewResult.freelancers.some(x => x.id === cId);
+          assignedCrew.push({
+            projectCrewId: la.id,
+            crewId: cId,
+            name,
+            source: 'local',
+            category: isInternal ? 'internal' : (isFreelancer ? 'freelancer' : 'hidden')
+          });
+        }
+      }
 
       // Vehicles
       const vehicleNames = allProjVehicles

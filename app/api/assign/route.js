@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { postRentman } from '@/lib/rentman';
+import { addLocalAssignment } from '@/lib/localAssignments';
 
 export async function POST(request) {
   try {
@@ -32,10 +33,9 @@ export async function POST(request) {
     }
 
     // Standard Project Function
-    const payload = { crewmember: `/crew/${crewId}` };
-    const response = await postRentman(`/projectfunctions/${functionId}/projectcrew`, payload);
-
-    return NextResponse.json(response?.data || response || { success: true });
+    // Rentman's Public API is read-only for /projectcrew, so persist locally on the dashboard
+    const localRecord = addLocalAssignment(functionId, crewId);
+    return NextResponse.json({ success: true, data: localRecord });
   } catch (error) {
     console.error('Assign API Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -195,7 +195,7 @@ export default function AssignmentModal({
                         </div>
                         {onUnassign && c.projectCrewId && (
                           <button
-                            onClick={() => onUnassign(c.projectCrewId, isAppointment)}
+                            onClick={() => onUnassign(c.projectCrewId, isAppointment, func.id, c.crewId)}
                             className="px-2 py-1 text-[11px] bg-red-500/10 hover:bg-red-500/25 active:scale-95 text-red-300 rounded-lg font-semibold transition-all border border-red-500/20"
                           >
                             Ta bort
