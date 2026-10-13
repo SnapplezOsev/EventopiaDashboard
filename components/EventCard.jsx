@@ -1,19 +1,11 @@
-import { getStatusBadgeStyle } from '@/lib/statusUtils';
+import { getStatusBadgeStyle, formatEventTimeBadge } from '@/lib/statusUtils';
 
 export default function EventCard({ func, onClick }) {
   const requiredAmount = func.amount || 1;
   const assignedCount = func.assignedCrew?.length || 0;
   const isFullyAssigned = assignedCount >= requiredAmount;
   
-  const formatTime = (isoString) => {
-    if (!isoString) return '--:--';
-    const d = new Date(isoString);
-    return isNaN(d) ? '--:--' : d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const timeString = func.isUnscheduled 
-    ? `⚠️ Obestämd tid ${func.durationHours ? `(${func.durationHours}h)` : ''}`
-    : `${formatTime(func.planperiod_start)} – ${formatTime(func.planperiod_end)}`;
+  const timeString = formatEventTimeBadge(func);
   
   // Create initials e.g. "Emil Reinfeldt" -> "ER"
   const initials = func.assignedCrew?.map(c => {

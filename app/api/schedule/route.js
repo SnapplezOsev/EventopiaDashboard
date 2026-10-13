@@ -197,23 +197,29 @@ export async function GET(request) {
 
       // Functions schedule time check
       let isUnscheduled = false;
+      let intervalStart = null;
+      let intervalEnd = null;
       let planStart = fn.planperiod_start || fn.usageperiod_start || fn.start;
       let planEnd = fn.planperiod_end || fn.usageperiod_end || fn.end || planStart;
 
       if (!planStart) {
-        // Unscheduled function without explicit dates (duration only or no planperiod in Rentman)
+        // Unscheduled function without explicit dates (duration only or interval from time period/subproject)
         const spStart = subproject?.planperiod_start || subproject?.usageperiod_start || project?.planperiod_start || project?.usageperiod_start;
         const spEnd = subproject?.planperiod_end || subproject?.usageperiod_end || project?.planperiod_end || project?.usageperiod_end || spStart;
         if (!spStart || !isInWeek(spStart, spEnd)) {
           continue; // Does not belong to this week's projects
         }
         isUnscheduled = true;
+        intervalStart = spStart;
+        intervalEnd = spEnd;
         // Position it on the project's start date, clamped to current week
         const spStartDate = new Date(spStart);
         planStart = spStartDate < weekStart ? weekStart.toISOString() : spStart;
-        planEnd = planStart;
+        planEnd = spEnd;
       } else {
         if (!isInWeek(planStart, planEnd)) continue;
+        intervalStart = planStart;
+        intervalEnd = planEnd;
       }
 
       if (subprojectId) processedSubprojects.add(subprojectId);
@@ -296,12 +302,27 @@ export async function GET(request) {
 
       const fnName = fn.name || functionGroupName || 'Funktion';
 
+      const durationHours = fn.duration ? Math.round((fn.duration / 3600) * 10) / 10 : null;
+      let spanHours = null;
+      if (intervalStart && intervalEnd) {
+        const sTime = new Date(intervalStart).getTime();
+        const eTime = new Date(intervalEnd).getTime();
+        if (!isNaN(sTime) && !isNaN(eTime)) {
+          spanHours = Math.round(((eTime - sTime) / 3600000) * 10) / 10;
+        }
+      }
+      const hasIntervalDuration = Boolean(durationHours && intervalStart && intervalEnd);
+
       const functionObj = {
         id: fn.id,
         name: fnName,
         type: fn.type || 'crew_function',
         isUnscheduled,
-        durationHours: fn.duration ? Math.round((fn.duration / 3600) * 10) / 10 : null,
+        durationHours,
+        intervalStart,
+        intervalEnd,
+        spanHours,
+        hasIntervalDuration,
         functionGroupId: functionGroupId || null,
         functionGroupName: functionGroupName || null,
         projectId: rawProjName ? (project.id || projectId || null) : null,

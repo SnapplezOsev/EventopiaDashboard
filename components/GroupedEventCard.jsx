@@ -1,13 +1,7 @@
 'use client';
-import { getStatusBadgeStyle } from '@/lib/statusUtils';
+import { getStatusBadgeStyle, formatEventTimeBadge } from '@/lib/statusUtils';
 
 export default function GroupedEventCard({ group, onFunctionClick }) {
-  const formatTime = (isoString) => {
-    if (!isoString) return '--:--';
-    const d = new Date(isoString);
-    return isNaN(d) ? '--:--' : d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
-  };
-
   const projectColor = group.projectColor?.startsWith('#') 
     ? group.projectColor 
     : (group.projectColor ? `#${group.projectColor}` : '#14B4EC');
@@ -59,9 +53,7 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
           const requiredAmount = func.amount || 1;
           const assignedCount = func.assignedCrew?.length || 0;
           const isFullyAssigned = assignedCount >= requiredAmount;
-          const timeString = func.isUnscheduled
-            ? `⚠️ Obestämd tid ${func.durationHours ? `(${func.durationHours}h)` : ''}`
-            : `${formatTime(func.planperiod_start)} – ${formatTime(func.planperiod_end)}`;
+          const timeString = formatEventTimeBadge(func);
           
           const initials = func.assignedCrew?.map(c => {
             const parts = c.name.split(' ');

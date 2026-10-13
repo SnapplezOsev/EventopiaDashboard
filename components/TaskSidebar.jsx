@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { formatFullDateRange, formatEventTimeBadge } from '@/lib/statusUtils';
 
 export default function TaskSidebar({ 
   tasks = [], 
@@ -125,8 +126,8 @@ export default function TaskSidebar({
             <div className="space-y-3">
               <div className="bg-amber-500/15 border border-amber-500/30 rounded-xl p-3 text-amber-200 text-xs flex items-start gap-2.5">
                 <span className="text-base shrink-0">⚠️</span>
-                <div>
-                  <span className="font-bold text-amber-100">Kräver tidsättning i Rentman:</span> Dessa funktioner har lagts till i projekt men saknar start- och sluttid (har endast duration). De kan inte schemaläggas på personal förrän de placeras på tidslinjen i Rentman.
+                <div className="leading-relaxed">
+                  <span className="font-bold text-amber-100">Kräver tidsättning i Rentman:</span> Dessa funktioner har lagts till med en varaktighet inom ett tidsintervall, men saknar fasta timmar på tidslinjen. De kan inte tilldelas på personal förrän de schemaläggs i Rentman.
                 </div>
               </div>
 
@@ -156,11 +157,20 @@ export default function TaskSidebar({
                       )}
                     </div>
                     <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold shrink-0">
-                      {func.durationHours ? `${func.durationHours}h duration` : 'Obestämd tid'}
+                      {func.durationHours ? `⏱️ ${func.durationHours}h duration` : 'Obestämd tid'}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between pt-1.5 border-t border-white/5 text-[11px] text-white/50">
+                  {func.intervalStart && func.intervalEnd && (
+                    <div className="text-[11px] text-amber-200/90 bg-black/25 px-2.5 py-1 rounded-lg border border-amber-500/20 flex items-center gap-1.5">
+                      <span>📅</span>
+                      <span className="font-medium truncate">
+                        Fönster: {formatFullDateRange(func.intervalStart, func.intervalEnd)}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] text-white/50">
                     <span>Behov: {func.amount || 1} pers</span>
                     <span className="text-amber-400 font-medium text-[10px] flex items-center gap-1">
                       <span>⚠️ Ej tidsatt</span>

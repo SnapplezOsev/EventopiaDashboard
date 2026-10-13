@@ -124,6 +124,10 @@ export default function WeekGrid({ functions = [], weekStart, onFunctionClick })
           );
           if (startsToday) return true;
 
+          // For unscheduled functions with multi-day intervals:
+          // Only show on the start day in the grid (to avoid cluttering every subsequent day)
+          if (f.isUnscheduled) return false;
+
           // If it started earlier and runs into today:
           // Only show it if it continues past 04:00 AM today (to avoid yesterday's late night shifts from cluttering today)
           if (start < currentDayStart && end > currentDayStart) {

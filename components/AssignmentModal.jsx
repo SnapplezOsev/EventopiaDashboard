@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { getStatusBadgeStyle } from '@/lib/statusUtils';
+import { getStatusBadgeStyle, formatEventTimeBadge, formatFullDateRange } from '@/lib/statusUtils';
 
 export default function AssignmentModal({ 
   func, 
@@ -68,7 +68,7 @@ export default function AssignmentModal({
 
                 <div className={`text-sm px-3 py-1 rounded-lg font-medium border ${func.isUnscheduled ? 'text-amber-200 bg-amber-500/20 border-amber-500/30' : 'text-white/80 bg-black/40 border-white/10'}`}>
                   {func.isUnscheduled 
-                    ? `⚠️ Obestämd tid ${func.durationHours ? `(${func.durationHours}h)` : ''}`
+                    ? formatEventTimeBadge(func)
                     : `${formatDate(func.planperiod_start)} | ${formatTime(func.planperiod_start)} – ${formatTime(func.planperiod_end)}`
                   }
                 </div>
@@ -132,14 +132,37 @@ export default function AssignmentModal({
         {func.isUnscheduled && (
           <div className="mx-6 mt-4 p-4 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-200 flex items-start gap-3 shrink-0">
             <span className="text-2xl shrink-0">⚠️</span>
-            <div className="text-sm">
-              <div className="font-bold text-amber-100 text-base">Funktionen saknar planeringstid i Rentman</div>
-              <div className="text-amber-200/90 mt-1 leading-relaxed">
-                Denna funktion har lagts till i projektet med en beräknad längd {func.durationHours ? `på ${func.durationHours} timmar` : ''}, men har ingen specifik start- och sluttid på tidslinjen.
-                I Rentman visas den med en varning och kan inte tilldelas på tidslinjen förrän en planeringstid har satts.
+            <div className="text-sm flex-1">
+              <div className="font-bold text-amber-100 text-base flex flex-wrap items-center justify-between gap-2">
+                <span>Funktionen saknar fasta timmar på tidslinjen i Rentman</span>
+                <span className="text-xs bg-amber-500/25 border border-amber-500/30 text-amber-200 px-2.5 py-0.5 rounded-full font-bold">
+                  Ej schemalagd
+                </span>
+              </div>
+
+              {/* Interval & Duration summary */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2.5">
+                {func.durationHours && (
+                  <div className="bg-black/30 rounded-xl p-2.5 border border-amber-500/25">
+                    <span className="text-[10px] uppercase font-bold text-amber-300/70 block">Arbetstid / Varaktighet</span>
+                    <span className="text-sm font-bold text-amber-100">⏱️ {func.durationHours} timmar</span>
+                  </div>
+                )}
+                {func.intervalStart && func.intervalEnd && (
+                  <div className="bg-black/30 rounded-xl p-2.5 border border-amber-500/25">
+                    <span className="text-[10px] uppercase font-bold text-amber-300/70 block">Tillåtet tidsintervall / Tidsperiod</span>
+                    <span className="text-xs font-semibold text-amber-100">
+                      📅 {formatFullDateRange(func.intervalStart, func.intervalEnd)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-amber-200/90 mt-2.5 text-xs leading-relaxed">
+                I Rentman är funktionen markerad som ej schemalagd eftersom den inte tilldelats fasta timmar. Rentman tillåter inte att personal tilldelas förrän funktionen schemalagts på tidslinjen.
               </div>
               <div className="mt-2 text-xs text-amber-300 font-semibold bg-black/20 px-3 py-1 rounded-lg inline-block border border-amber-500/20">
-                💡 Åtgärd: Öppna projektet i Rentman och ange en planeringstid för funktionen.
+                💡 Åtgärd: Öppna projektet i Rentman &rarr; Dra ut funktionen på Crew Scheduler &rarr; Tilldela därefter.
               </div>
             </div>
           </div>
@@ -249,96 +272,115 @@ export default function AssignmentModal({
 
             </div>
 
-            {/* Column 2 (Right): Staff Selection Picker (Non-shifting) */}
-            {onAssign && (
-              <div className="md:col-span-7 bg-white/[0.02] border border-white/10 rounded-2xl p-4 flex flex-col h-full">
-                <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">Tilldela personal</h3>
-                  
-                  {/* Search */}
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Sök personal..."
-                      value={crewSearch}
-                      onChange={(e) => setCrewSearch(e.target.value)}
-                      className="bg-white/5 border border-white/10 rounded-xl pl-3 pr-7 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-white/30 w-44"
-                    />
-                    {crewSearch && (
-                      <button 
-                        onClick={() => setCrewSearch('')} 
-                        className="absolute right-2 top-1.5 text-white/40 hover:text-white text-xs"
-                      >
-                        ✕
-                      </button>
+            {/* Column 2 (Right): Staff Selection Picker (or Unscheduled Guidance) */}
+            {func.isUnscheduled ? (
+              <div className="md:col-span-7 bg-amber-500/[0.04] border border-amber-500/20 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center justify-center text-3xl mb-4">
+                  ⏱️
+                </div>
+                <h3 className="text-lg font-bold text-amber-100 mb-2">Kan ej bemannas i dashboarden</h3>
+                <p className="text-sm text-amber-200/80 max-w-md leading-relaxed mb-5">
+                  Funktionen har en beräknad varaktighet {func.durationHours ? `på ${func.durationHours} timmar` : ''} {func.intervalStart && func.intervalEnd ? `inom tidsperioden (${formatFullDateRange(func.intervalStart, func.intervalEnd)})` : ''}, men saknar fasta timmar på Rentmans tidslinje. Rentman kräver att funktionen placeras på tidslinjen innan personal kan tilldelas.
+                </p>
+                <div className="bg-black/40 px-5 py-3 rounded-2xl text-xs text-amber-300 border border-amber-500/30 font-medium max-w-md text-left flex items-start gap-2.5">
+                  <span className="text-base shrink-0">💡</span>
+                  <div>
+                    <span className="font-bold text-amber-200 block mb-0.5">Hur du schemalägger i Rentman:</span>
+                    Öppna projektet &rarr; Gå till <span className="font-semibold text-white">Crew Scheduler</span> &rarr; Dra ut funktionen till önskade timmar &rarr; Uppdatera sedan dashboarden.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              onAssign && (
+                <div className="md:col-span-7 bg-white/[0.02] border border-white/10 rounded-2xl p-4 flex flex-col h-full">
+                  <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">Tilldela personal</h3>
+                    
+                    {/* Search */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Sök personal..."
+                        value={crewSearch}
+                        onChange={(e) => setCrewSearch(e.target.value)}
+                        className="bg-white/5 border border-white/10 rounded-xl pl-3 pr-7 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-white/30 w-44"
+                      />
+                      {crewSearch && (
+                        <button 
+                          onClick={() => setCrewSearch('')} 
+                          className="absolute right-2 top-1.5 text-white/40 hover:text-white text-xs"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Category Tabs */}
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      onClick={() => setCrewCategoryTab('internal')}
+                      className={`py-1.5 px-3.5 rounded-xl text-xs font-semibold transition-all ${
+                        crewCategoryTab === 'internal'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-white/5 text-white/60 hover:text-white'
+                      }`}
+                    >
+                      Intern personal ({internalCrew.length})
+                    </button>
+                    <button
+                      onClick={() => setCrewCategoryTab('freelancer')}
+                      className={`py-1.5 px-3.5 rounded-xl text-xs font-semibold transition-all ${
+                        crewCategoryTab === 'freelancer'
+                          ? 'bg-purple-600 text-white shadow-md'
+                          : 'bg-white/5 text-white/60 hover:text-white'
+                      }`}
+                    >
+                      Frilansare ({freelancerCrew.length})
+                    </button>
+                  </div>
+
+                  {/* Fixed Height Crew List Grid - ZERO Layout Shift When Adding */}
+                  <div className="grid grid-cols-2 gap-2 h-[340px] overflow-y-auto custom-scrollbar pr-1 content-start">
+                    {filteredCrew.map(c => {
+                      const isAssigned = assignedCrewIds.has(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          disabled={isAssigned}
+                          onClick={() => onAssign(c.id)}
+                          className={`p-2.5 rounded-xl border text-left flex justify-between items-center transition-all ${
+                            isAssigned
+                              ? 'bg-emerald-950/20 border-emerald-500/30 opacity-70 cursor-default'
+                              : 'bg-white/5 hover:bg-white/10 active:scale-[0.98] border-white/10 hover:border-white/20'
+                          }`}
+                        >
+                          <div className="min-w-0 pr-1.5">
+                            <p className="text-white text-xs font-medium truncate">{c.name}</p>
+                            {c.preferred && (
+                              <p className="text-amber-400 text-[10px] font-semibold flex items-center gap-0.5">
+                                ★ Föredragen
+                              </p>
+                            )}
+                          </div>
+                          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 border ${
+                            isAssigned 
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                              : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                          }`}>
+                            {isAssigned ? '✓ Tilldelad' : '+ Välj'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {filteredCrew.length === 0 && (
+                      <div className="col-span-full text-center py-8 text-white/40 text-xs">
+                        Ingen personal matchade &quot;{crewSearch}&quot;.
+                      </div>
                     )}
                   </div>
                 </div>
-
-                {/* Category Tabs */}
-                <div className="flex gap-2 mb-3">
-                  <button
-                    onClick={() => setCrewCategoryTab('internal')}
-                    className={`py-1.5 px-3.5 rounded-xl text-xs font-semibold transition-all ${
-                      crewCategoryTab === 'internal'
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'bg-white/5 text-white/60 hover:text-white'
-                    }`}
-                  >
-                    Intern personal ({internalCrew.length})
-                  </button>
-                  <button
-                    onClick={() => setCrewCategoryTab('freelancer')}
-                    className={`py-1.5 px-3.5 rounded-xl text-xs font-semibold transition-all ${
-                      crewCategoryTab === 'freelancer'
-                        ? 'bg-purple-600 text-white shadow-md'
-                        : 'bg-white/5 text-white/60 hover:text-white'
-                    }`}
-                  >
-                    Frilansare ({freelancerCrew.length})
-                  </button>
-                </div>
-
-                {/* Fixed Height Crew List Grid - ZERO Layout Shift When Adding */}
-                <div className="grid grid-cols-2 gap-2 h-[340px] overflow-y-auto custom-scrollbar pr-1 content-start">
-                  {filteredCrew.map(c => {
-                    const isAssigned = assignedCrewIds.has(c.id);
-                    return (
-                      <button
-                        key={c.id}
-                        disabled={isAssigned}
-                        onClick={() => onAssign(c.id)}
-                        className={`p-2.5 rounded-xl border text-left flex justify-between items-center transition-all ${
-                          isAssigned
-                            ? 'bg-emerald-950/20 border-emerald-500/30 opacity-70 cursor-default'
-                            : 'bg-white/5 hover:bg-white/10 active:scale-[0.98] border-white/10 hover:border-white/20'
-                        }`}
-                      >
-                        <div className="min-w-0 pr-1.5">
-                          <p className="text-white text-xs font-medium truncate">{c.name}</p>
-                          {c.preferred && (
-                            <p className="text-amber-400 text-[10px] font-semibold flex items-center gap-0.5">
-                              ★ Föredragen
-                            </p>
-                          )}
-                        </div>
-                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 border ${
-                          isAssigned 
-                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
-                            : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                        }`}>
-                          {isAssigned ? '✓ Tilldelad' : '+ Välj'}
-                        </span>
-                      </button>
-                    );
-                  })}
-                  {filteredCrew.length === 0 && (
-                    <div className="col-span-full text-center py-8 text-white/40 text-xs">
-                      Ingen personal matchade &quot;{crewSearch}&quot;.
-                    </div>
-                  )}
-                </div>
-              </div>
+              )
             )}
 
           </div>
