@@ -15,6 +15,13 @@ export default function SettingsModal({ onClose, onSave, currentSettings }) {
   const [updateStage, setUpdateStage] = useState('none'); // 'none' | 'starting' | 'git_pull' | 'npm_install' | 'building' | 'restarting' | 'complete' | 'failed' | 'docker_info'
   const pollTimerRef = useRef(null);
 
+  // Google Calendar State
+  const [calendarConfig, setCalendarConfig] = useState(null);
+  const [calendarInputId, setCalendarInputId] = useState('');
+  const [calendarLastSync, setCalendarLastSync] = useState(null);
+  const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
+  const [calendarSyncMsg, setCalendarSyncMsg] = useState('');
+
   // Clean up poll timer on unmount
   useEffect(() => {
     return () => {
@@ -117,9 +124,65 @@ export default function SettingsModal({ onClose, onSave, currentSettings }) {
     }
   }, [startPolling]);
 
+  const fetchCalendarStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/calendar/sync');
+      if (res.ok) {
+        const data = await res.json();
+        setCalendarConfig(data.config);
+        setCalendarInputId(data.config.calendarId || '');
+        setCalendarLastSync(data.lastSync);
+      }
+    } catch (e) {
+      console.warn('Could not fetch calendar status:', e);
+    }
+  }, []);
+
   useEffect(() => {
     checkUpdates();
-  }, [checkUpdates]);
+    fetchCalendarStatus();
+  }, [checkUpdates, fetchCalendarStatus]);
+
+  const handleSaveCalendarId = async () => {
+    try {
+      const res = await fetch('/api/calendar/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'saveConfig', calendarId: calendarInputId }),
+      });
+      const data = await res.json();
+      if (data.config) {
+        setCalendarConfig(data.config);
+        setCalendarSyncMsg('Kalender-ID sparat!');
+        setTimeout(() => setCalendarSyncMsg(''), 3000);
+      }
+    } catch (err) {
+      setCalendarSyncMsg('Kunde inte spara Kalender-ID');
+    }
+  };
+
+  const handleTriggerCalendarSync = async () => {
+    setIsSyncingCalendar(true);
+    setCalendarSyncMsg('Synkar schemat med Google Kalender...');
+    try {
+      const res = await fetch('/api/calendar/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync' }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCalendarSyncMsg(`✔ Synk klar! ${data.result.created} skapade, ${data.result.updated} uppdaterade.`);
+        setCalendarLastSync(data.result);
+      } else {
+        setCalendarSyncMsg(`Fel vid synk: ${data.error || 'Okänt fel'}`);
+      }
+    } catch (err) {
+      setCalendarSyncMsg(`Kunde inte kontakta servern: ${err.message}`);
+    } finally {
+      setIsSyncingCalendar(false);
+    }
+  };
 
   const handleTriggerUpdate = async () => {
     setIsUpdating(true);
@@ -234,6 +297,104 @@ export default function SettingsModal({ onClose, onSave, currentSettings }) {
               <p className="text-white/30 text-xs mt-2 leading-relaxed">
                 När någon rör skärmen utanför ordinarie tider, hur länge ska den hålla sig vaken innan den somnar om?
               </p>
+            </div>
+          </div>
+
+          {/* Google Kalender Integration */}
+          <div className="pt-4 border-t border-white/10">
+            <h3 className="text-white/80 font-semibold mb-4 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <span className="text-lg">📅</span>
+                <span>Google Kalender-synk</span>
+              </span>
+              {calendarConfig?.isConfigured ? (
+                <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  Kopplad
+                </span>
+              ) : (
+                <span className="text-xs font-semibold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
+                  Kräver konfigurering
+                </span>
+              )}
+            </h3>
+
+            <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/10 space-y-3">
+              <div>
+                <label className="block text-white/50 text-xs uppercase tracking-wider font-bold mb-1.5">
+                  Google Kalender-ID
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={calendarInputId}
+                    onChange={e => setCalendarInputId(e.target.value)}
+                    placeholder="t.ex. c_xxxxxxxx@group.calendar.google.com"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-blue-500/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveCalendarId}
+                    className="px-3 py-2 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-xl text-xs font-semibold transition-all border border-white/5"
+                  >
+                    Spara ID
+                  </button>
+                </div>
+                <p className="text-white/40 text-[11px] mt-1">
+                  Hittas i Google Kalender under Inställningar för kalendern ➔ &quot;Kalender-ID&quot;.
+                </p>
+              </div>
+
+              {calendarConfig?.serviceAccountEmail ? (
+                <div className="bg-black/30 p-2.5 rounded-xl border border-white/5 text-xs text-white/70">
+                  <span className="text-white/40 block text-[10px] uppercase font-bold mb-0.5">Kopplat Service-konto:</span>
+                  <span className="font-mono text-emerald-300 select-all block truncate">{calendarConfig.serviceAccountEmail}</span>
+                  <p className="text-white/40 text-[10px] mt-1">
+                    Se till att kalendern är delad med denna adress i Google Kalender med behörigheten &quot;Göra ändringar i händelser&quot;.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20 text-xs text-amber-200">
+                  <span className="font-bold block mb-1">Service Account saknas:</span>
+                  Placera er JSON-nyckelfil från Google Cloud i:
+                  <code className="block mt-1 font-mono text-white bg-black/40 p-1.5 rounded select-all text-[11px]">
+                    data/google-service-account.json
+                  </code>
+                </div>
+              )}
+
+              {calendarLastSync && (
+                <div className="text-white/50 text-[11px] flex justify-between items-center pt-1 border-t border-white/5">
+                  <span>Senaste synk: {new Date(calendarLastSync.syncedAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-emerald-400 font-medium">✓ {calendarLastSync.created + calendarLastSync.updated} händelser i synk</span>
+                </div>
+              )}
+
+              {calendarSyncMsg && (
+                <div className="p-2.5 rounded-xl text-xs font-medium bg-blue-500/10 border border-blue-500/20 text-blue-300">
+                  {calendarSyncMsg}
+                </div>
+              )}
+
+              {calendarConfig?.isConfigured && (
+                <button
+                  type="button"
+                  onClick={handleTriggerCalendarSync}
+                  disabled={isSyncingCalendar}
+                  className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-sm"
+                >
+                  {isSyncingCalendar ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Synkar med Google Kalender...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🔄 Synka med Google Kalender nu</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
