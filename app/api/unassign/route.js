@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { deleteRentman } from '@/lib/rentman';
+import { deleteRentman, fetchRentman, extractId } from '@/lib/rentman';
 import { removeLocalAssignment } from '@/lib/localAssignments';
 
 export async function POST(request) {
@@ -19,10 +19,29 @@ export async function POST(request) {
     }
 
     if (isAppointment) {
-      try {
-        await deleteRentman(`/appointmentcrew/${projectCrewId}`);
-      } catch (err) {
-        console.warn('Could not delete appointment crew from Rentman:', err.message);
+      let deleted = false;
+      const isRealId = projectCrewId && typeof projectCrewId === 'number' || (typeof projectCrewId === 'string' && !projectCrewId.startsWith('temp-') && !projectCrewId.startsWith('local-'));
+      if (isRealId) {
+        try {
+          await deleteRentman(`/appointmentcrew/${projectCrewId}`);
+          deleted = true;
+        } catch (err) {
+          console.warn('Could not delete appointment crew by id from Rentman:', err.message);
+        }
+      }
+
+      if (!deleted && functionId && crewId) {
+        // Fallback: fetch appointmentcrew for this appointment, find matching crewmember, and delete
+        const realAppId = String(functionId).replace('app-', '');
+        try {
+          const crewRes = await fetchRentman(`/appointments/${realAppId}/appointmentcrew`).catch(() => null);
+          const match = crewRes?.data?.find(ac => extractId(ac.crew) === Number(crewId));
+          if (match?.id) {
+            await deleteRentman(`/appointmentcrew/${match.id}`);
+          }
+        } catch (err) {
+          console.warn('Fallback appointment crew delete failed:', err.message);
+        }
       }
     }
 

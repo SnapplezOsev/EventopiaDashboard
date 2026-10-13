@@ -118,7 +118,15 @@ export async function GET(request) {
 
     const functionGroupMap = {};
     for (const fg of allProjFunctionGroups) {
-      functionGroupMap[fg.id] = fg.name || fg.displayname || '';
+      functionGroupMap[fg.id] = {
+        id: fg.id,
+        name: fg.name || fg.displayname || '',
+        planperiod_start: fg.planperiod_start,
+        planperiod_end: fg.planperiod_end,
+        usageperiod_start: fg.usageperiod_start,
+        usageperiod_end: fg.usageperiod_end,
+        duration: fg.duration
+      };
     }
 
     const projectStatusMap = {};
@@ -195,41 +203,70 @@ export async function GET(request) {
       const projectId = extractId(fn.project) || (subproject ? extractId(subproject.project) : null);
       const project = projectMap[projectId] || {};
 
+      const functionGroupId = extractId(fn.group);
+      const fg = functionGroupId ? functionGroupMap[functionGroupId] : null;
+      const functionGroupName = fg?.name || '';
+
+      // Direct explicit dates on function
+      const directStart = fn.planperiod_start || fn.usageperiod_start || fn.start;
+      const directEnd = fn.planperiod_end || fn.usageperiod_end || fn.end || directStart;
+
+      // Specific timeframe dates from function group
+      const fgStart = fg?.planperiod_start || fg?.usageperiod_start;
+      const fgEnd = fg?.planperiod_end || fg?.usageperiod_end || fgStart;
+
+      // Project planning & usage period
+      const projPlanStart = subproject?.planperiod_start || project?.planperiod_start;
+      const projPlanEnd = subproject?.planperiod_end || project?.planperiod_end || projPlanStart;
+
       // Functions schedule time check
       let isUnscheduled = false;
       let intervalStart = null;
       let intervalEnd = null;
-      let planStart = fn.planperiod_start || fn.usageperiod_start || fn.start;
-      let planEnd = fn.planperiod_end || fn.usageperiod_end || fn.end || planStart;
+      let planStart = null;
+      let planEnd = null;
 
-      if (!planStart) {
-        // Unscheduled function without explicit dates (duration only or interval from time period/subproject)
-        const spStart = subproject?.planperiod_start || subproject?.usageperiod_start || project?.planperiod_start || project?.usageperiod_start;
-        const spEnd = subproject?.planperiod_end || subproject?.usageperiod_end || project?.planperiod_end || project?.usageperiod_end || spStart;
-        
-        // If project dates exist but are outside this week, skip
-        if (spStart && !isInWeek(spStart, spEnd)) {
-          continue;
-        }
-
+      if (directStart) {
+        // Scheduled function with explicit times
+        if (!isInWeek(directStart, directEnd)) continue;
+        isUnscheduled = false;
+        planStart = directStart;
+        planEnd = directEnd;
+        intervalStart = directStart;
+        intervalEnd = directEnd;
+      } else {
+        // Function has no explicit dates directly set
         isUnscheduled = true;
-        if (spStart && isInWeek(spStart, spEnd)) {
-          intervalStart = spStart;
-          intervalEnd = spEnd;
-          const spStartDate = new Date(spStart);
-          planStart = spStartDate < weekStart ? weekStart.toISOString() : spStart;
-          planEnd = spEnd;
+
+        // Check if the function belongs to a distinct timeframe/function group period:
+        // A distinct timeframe is defined if fgStart & fgEnd exist and:
+        // 1) Either fgStart or fgEnd differs from the project's overall broad planning period, OR
+        // 2) fgStart and fgEnd are on the same calendar day (a single day's window)
+        const isSameDayFg = fgStart && fgEnd && new Date(fgStart).toDateString() === new Date(fgEnd).toDateString();
+        const differsFromProjPlan = fgStart && fgEnd && (fgStart !== projPlanStart || fgEnd !== projPlanEnd);
+        const hasSpecificTimePeriod = Boolean(fgStart && fgEnd && (differsFromProjPlan || isSameDayFg));
+
+        if (hasSpecificTimePeriod) {
+          // If this specific timeframe is outside the viewed week, skip
+          if (!isInWeek(fgStart, fgEnd)) {
+            continue;
+          }
+          intervalStart = fgStart;
+          intervalEnd = fgEnd;
+          planStart = fgStart;
+          planEnd = fgEnd;
         } else {
-          // No timeframe/interval set: keep it for the sidebar, but not with an interval
+          // No specific timeframe/period: lies only within generic "Planning period"
+          // Skip if project's planning period is not in this week
+          if (projPlanStart && !isInWeek(projPlanStart, projPlanEnd)) {
+            continue;
+          }
+          // Do not treat as specific timeframe interval (so it's not shown in the grid overview)
           intervalStart = null;
           intervalEnd = null;
-          planStart = weekStart.toISOString();
-          planEnd = weekStart.toISOString();
+          planStart = projPlanStart || weekStart.toISOString();
+          planEnd = projPlanEnd || planStart;
         }
-      } else {
-        if (!isInWeek(planStart, planEnd)) continue;
-        intervalStart = planStart;
-        intervalEnd = planEnd;
       }
 
       if (subprojectId) processedSubprojects.add(subprojectId);
@@ -294,8 +331,7 @@ export async function GET(request) {
         .map(pv => vehicleMap[extractId(pv.vehicle)])
         .filter(Boolean);
 
-      const functionGroupId = extractId(fn.group);
-      const functionGroupName = functionGroupId ? (functionGroupMap[functionGroupId] || '') : '';
+
 
       // Determine clean project name (prevent "Projekt", "Shifts project", "Shift" for internal shifts)
       let rawProjName = project.name || subproject?.name || '';

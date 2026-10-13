@@ -8,6 +8,7 @@ export async function POST(request) {
     delete body.pendingAssignments;
 
     if (!body.color) body.color = 'E67E22'; // Default color for meetings (Orange)
+    body.color = String(body.color).replace('#', '');
     
     // Create Appointment
     const data = await postRentman('/appointments', body);
@@ -16,21 +17,11 @@ export async function POST(request) {
     if (newMeetingId && pendingAssignments.length > 0) {
       for (const crewId of pendingAssignments) {
         try {
-          await postRentman('/appointmentcrew', {
-            appointment: `/appointments/${newMeetingId}`,
-            crew: `/crew/${crewId}`,
-            crewmember: `/crew/${crewId}`
+          await postRentman(`/appointments/${newMeetingId}/appointmentcrew`, {
+            crew: `/crew/${crewId}`
           });
         } catch (err) {
-          console.warn('Retrying appointment crew with direct id:', err.message);
-          try {
-            await postRentman('/appointmentcrew', {
-              appointment: newMeetingId,
-              crew: crewId
-            });
-          } catch (err2) {
-            console.error('Failed to link crew to appointment:', err2.message);
-          }
+          console.error(`Failed to link crew ${crewId} to appointment ${newMeetingId}:`, err.message);
         }
       }
     }
@@ -52,18 +43,45 @@ export async function PUT(request) {
       return NextResponse.json({ error: 'Missing meeting ID' }, { status: 400 });
     }
 
+    if (updateData.color) {
+      updateData.color = String(updateData.color).replace('#', '');
+    }
+
     const data = await putRentman(`/appointments/${realId}`, updateData);
 
-    if (Array.isArray(pendingAssignments) && pendingAssignments.length > 0) {
+    if (Array.isArray(pendingAssignments)) {
+      // Fetch current appointment crew from Rentman to diff additions and removals
+      const currentRes = await fetchRentman(`/appointments/${realId}/appointmentcrew`).catch(() => null);
+      const currentCrewItems = currentRes?.data || [];
+      const currentCrewMap = new Map();
+      for (const ac of currentCrewItems) {
+        const cId = extractId(ac.crew);
+        if (cId) currentCrewMap.set(Number(cId), ac.id);
+      }
+
+      // Add new assignments
       for (const crewId of pendingAssignments) {
-        try {
-          await postRentman('/appointmentcrew', {
-            appointment: `/appointments/${realId}`,
-            crew: `/crew/${crewId}`,
-            crewmember: `/crew/${crewId}`
-          });
-        } catch (err) {
-          console.warn('Failed to assign attendee on update:', err.message);
+        const numId = Number(crewId);
+        if (!currentCrewMap.has(numId)) {
+          try {
+            await postRentman(`/appointments/${realId}/appointmentcrew`, {
+              crew: `/crew/${numId}`
+            });
+          } catch (err) {
+            console.warn(`Failed to assign attendee ${crewId} on update:`, err.message);
+          }
+        }
+      }
+
+      // Remove unselected assignments
+      const desiredSet = new Set(pendingAssignments.map(Number));
+      for (const [cId, acId] of currentCrewMap.entries()) {
+        if (!desiredSet.has(cId)) {
+          try {
+            await deleteRentman(`/appointmentcrew/${acId}`);
+          } catch (err) {
+            console.warn(`Failed to remove attendee ${cId} on update:`, err.message);
+          }
         }
       }
     }

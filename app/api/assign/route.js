@@ -16,19 +16,9 @@ export async function POST(request) {
     // If this is an appointment/meeting
     if (fnStr.startsWith('app-')) {
       const realAppointmentId = fnStr.replace('app-', '');
-      let response;
-      try {
-        response = await postRentman('/appointmentcrew', {
-          appointment: `/appointments/${realAppointmentId}`,
-          crew: `/crew/${crewId}`,
-          crewmember: `/crew/${crewId}`
-        });
-      } catch (err) {
-        response = await postRentman('/appointmentcrew', {
-          appointment: realAppointmentId,
-          crew: crewId
-        });
-      }
+      const response = await postRentman(`/appointments/${realAppointmentId}/appointmentcrew`, {
+        crew: `/crew/${crewId}`
+      });
       return NextResponse.json(response?.data || response || { success: true });
     }
 
