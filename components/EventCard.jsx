@@ -11,7 +11,9 @@ export default function EventCard({ func, onClick }) {
     return isNaN(d) ? '--:--' : d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
   };
 
-  const timeString = `${formatTime(func.planperiod_start)} – ${formatTime(func.planperiod_end)}`;
+  const timeString = func.isUnscheduled 
+    ? `⚠️ Obestämd tid ${func.durationHours ? `(${func.durationHours}h)` : ''}`
+    : `${formatTime(func.planperiod_start)} – ${formatTime(func.planperiod_end)}`;
   
   // Create initials e.g. "Emil Reinfeldt" -> "ER"
   const initials = func.assignedCrew?.map(c => {
@@ -26,14 +28,18 @@ export default function EventCard({ func, onClick }) {
     : (func.statusName || 'Okänd');
   const projStatusClass = getStatusBadgeStyle(displayStatus);
 
+  const cardBorderClass = func.isUnscheduled
+    ? 'bg-amber-500/[0.07] hover:bg-amber-500/[0.12] border-l-[3px] border-l-amber-500 border border-amber-500/30 border-dashed'
+    : `bg-white/[0.06] hover:bg-white/[0.1] border-l-[3px] ${isFullyAssigned ? 'border-l-green-500' : 'border-l-red-500'}`;
+
   return (
     <div 
       onClick={onClick}
-      className={`relative bg-white/[0.06] hover:bg-white/[0.1] active:scale-[0.97] transition-all border-l-[3px] rounded-xl p-2 cursor-pointer group shadow-sm flex flex-col gap-1.5 ${isFullyAssigned ? 'border-l-green-500' : 'border-l-red-500'}`}
+      className={`relative active:scale-[0.97] transition-all rounded-xl p-2 cursor-pointer group shadow-sm flex flex-col gap-1.5 ${cardBorderClass}`}
     >
       {/* Row 1: Time and Function */}
       <div className="flex justify-between items-center w-full">
-        <div className="bg-white/10 text-white text-sm px-2 py-0.5 rounded-md font-bold tracking-wide">
+        <div className={`${func.isUnscheduled ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30 text-xs' : 'bg-white/10 text-white text-sm'} px-2 py-0.5 rounded-md font-bold tracking-wide flex items-center gap-1`}>
           {timeString}
         </div>
         <div className="font-bold text-white text-sm truncate max-w-[150px] text-right" title={func.name}>
@@ -72,9 +78,15 @@ export default function EventCard({ func, onClick }) {
           )}
         </div>
 
-        <div className={`text-[11px] shrink-0 px-1.5 py-0.5 rounded font-bold tracking-widest ${isFullyAssigned ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10'}`}>
-          [{initials}]
-        </div>
+        {func.isUnscheduled ? (
+          <div className="text-[10px] shrink-0 px-2 py-0.5 rounded font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30">
+            ⚠️ Ej tidsatt
+          </div>
+        ) : (
+          <div className={`text-[11px] shrink-0 px-1.5 py-0.5 rounded font-bold tracking-widest ${isFullyAssigned ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10'}`}>
+            [{initials}]
+          </div>
+        )}
       </div>
 
       {/* Badges: Status, Vehicle, and Assignee count */}
@@ -90,10 +102,16 @@ export default function EventCard({ func, onClick }) {
           )}
         </div>
         
-        <div className={`shrink-0 flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full border ${isFullyAssigned ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`}>
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-          {assignedCount} / {requiredAmount}
-        </div>
+        {func.isUnscheduled ? (
+          <div className="shrink-0 text-[10px] text-amber-300/90 font-medium flex items-center gap-1">
+            <span>Kan ej bemannas</span>
+          </div>
+        ) : (
+          <div className={`shrink-0 flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full border ${isFullyAssigned ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+            {assignedCount} / {requiredAmount}
+          </div>
+        )}
       </div>
     </div>
   );

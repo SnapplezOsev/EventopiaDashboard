@@ -59,7 +59,9 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
           const requiredAmount = func.amount || 1;
           const assignedCount = func.assignedCrew?.length || 0;
           const isFullyAssigned = assignedCount >= requiredAmount;
-          const timeString = `${formatTime(func.planperiod_start)} – ${formatTime(func.planperiod_end)}`;
+          const timeString = func.isUnscheduled
+            ? `⚠️ Obestämd tid ${func.durationHours ? `(${func.durationHours}h)` : ''}`
+            : `${formatTime(func.planperiod_start)} – ${formatTime(func.planperiod_end)}`;
           
           const initials = func.assignedCrew?.map(c => {
             const parts = c.name.split(' ');
@@ -69,6 +71,10 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
 
           const projStatusClass = getStatusBadgeStyle(func.statusName);
 
+          const itemBorderClass = func.isUnscheduled
+            ? 'border-l-amber-500 bg-amber-500/[0.06] border border-amber-500/25 border-dashed'
+            : (isFullyAssigned ? 'border-l-green-500' : 'border-l-red-500');
+
           return (
             <div
               key={func.id}
@@ -76,13 +82,11 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
                 e.stopPropagation();
                 onFunctionClick(func);
               }}
-              className={`bg-black/30 hover:bg-white/[0.08] active:scale-[0.98] transition-all border-l-[3px] rounded-xl p-2 cursor-pointer flex flex-col gap-1 shadow-sm ${
-                isFullyAssigned ? 'border-l-green-500' : 'border-l-red-500'
-              }`}
+              className={`hover:bg-white/[0.08] active:scale-[0.98] transition-all border-l-[3px] rounded-xl p-2 cursor-pointer flex flex-col gap-1 shadow-sm ${itemBorderClass}`}
             >
               {/* Row 1: Time and Function Name */}
               <div className="flex justify-between items-center w-full">
-                <div className="bg-white/10 text-white text-[11px] px-1.5 py-0.2 rounded font-bold tracking-wide">
+                <div className={`${func.isUnscheduled ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30 text-[10px]' : 'bg-white/10 text-white text-[11px]'} px-1.5 py-0.2 rounded font-bold tracking-wide`}>
                   {timeString}
                 </div>
                 <div className="font-bold text-white text-xs truncate max-w-[150px] text-right" title={func.name}>
@@ -107,12 +111,20 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
-                  <div className={`text-[10px] px-1.5 py-0.2 rounded font-bold tracking-widest ${isFullyAssigned ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10'}`}>
-                    [{initials}]
-                  </div>
-                  <div className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full border flex items-center gap-0.5 ${isFullyAssigned ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`}>
-                    {assignedCount}/{requiredAmount}
-                  </div>
+                  {func.isUnscheduled ? (
+                    <div className="text-[9px] px-1.5 py-0.2 rounded font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30">
+                      ⚠️ Ej tidsatt
+                    </div>
+                  ) : (
+                    <>
+                      <div className={`text-[10px] px-1.5 py-0.2 rounded font-bold tracking-widest ${isFullyAssigned ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10'}`}>
+                        [{initials}]
+                      </div>
+                      <div className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full border flex items-center gap-0.5 ${isFullyAssigned ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`}>
+                        {assignedCount}/{requiredAmount}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

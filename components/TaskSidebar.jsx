@@ -1,8 +1,14 @@
 'use client';
 import { useState } from 'react';
 
-export default function TaskSidebar({ tasks = [], onTaskClick, onCreateTask }) {
-  const [activeTab, setActiveTab] = useState('active'); // 'active' | 'completed'
+export default function TaskSidebar({ 
+  tasks = [], 
+  unscheduledFunctions = [],
+  onTaskClick, 
+  onCreateTask,
+  onFunctionClick 
+}) {
+  const [activeTab, setActiveTab] = useState('active'); // 'active' | 'completed' | 'unscheduled'
 
   const activeTasks = tasks.filter(t => !t.isCompleted);
   const completedTasks = tasks.filter(t => t.isCompleted);
@@ -35,9 +41,9 @@ export default function TaskSidebar({ tasks = [], onTaskClick, onCreateTask }) {
       {/* Header */}
       <div className="p-4 border-b border-white/10 bg-white/[0.02] flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-white tracking-wide">Uppgifter</h2>
+          <h2 className="text-lg font-semibold text-white tracking-wide">Uppgifter & Oplanerat</h2>
           <div className="bg-white/10 px-2.5 py-0.5 rounded-full text-sm text-white font-medium">
-            {activeTasks.length}
+            {activeTasks.length + unscheduledFunctions.length}
           </div>
         </div>
         <button 
@@ -50,17 +56,17 @@ export default function TaskSidebar({ tasks = [], onTaskClick, onCreateTask }) {
       </div>
 
       {/* Tabs */}
-      <div className="flex p-2 gap-2 border-b border-white/10 bg-black/20">
+      <div className="flex p-2 gap-1.5 border-b border-white/10 bg-black/20 overflow-x-auto custom-scrollbar">
         <button
           onClick={() => setActiveTab('active')}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shrink-0 ${
             activeTab === 'active'
               ? 'bg-blue-600 text-white shadow-md'
               : 'text-white/60 hover:text-white hover:bg-white/5'
           }`}
         >
           <span>Aktiva</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
             activeTab === 'active' ? 'bg-black/25 text-white' : 'bg-white/10 text-white/70'
           }`}>
             {activeTasks.length}
@@ -68,15 +74,35 @@ export default function TaskSidebar({ tasks = [], onTaskClick, onCreateTask }) {
         </button>
 
         <button
+          onClick={() => setActiveTab('unscheduled')}
+          className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+            activeTab === 'unscheduled'
+              ? 'bg-amber-600 text-white shadow-md'
+              : unscheduledFunctions.length > 0 
+                ? 'text-amber-300 hover:text-white hover:bg-amber-500/10' 
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <span>⚠️ Ej tidsatta</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+            activeTab === 'unscheduled' 
+              ? 'bg-black/25 text-white' 
+              : unscheduledFunctions.length > 0 ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10 text-white/70'
+          }`}>
+            {unscheduledFunctions.length}
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('completed')}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shrink-0 ${
             activeTab === 'completed'
               ? 'bg-emerald-600 text-white shadow-md'
               : 'text-white/60 hover:text-white hover:bg-white/5'
           }`}
         >
-          <span>Klara denna vecka</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+          <span>Klara</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
             activeTab === 'completed' ? 'bg-black/25 text-white' : 'bg-white/10 text-white/70'
           }`}>
             {completedTasks.length}
@@ -84,9 +110,67 @@ export default function TaskSidebar({ tasks = [], onTaskClick, onCreateTask }) {
         </button>
       </div>
 
-      {/* Task List */}
+      {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-        {sortedTasks.length === 0 ? (
+        {activeTab === 'unscheduled' ? (
+          unscheduledFunctions.length === 0 ? (
+            <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-center p-6 text-white/40">
+              <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl mb-3">
+                ✓
+              </div>
+              <p className="font-semibold text-white/80">Alla funktioner är tidsatta</p>
+              <p className="text-xs text-white/40 mt-1">Inga funktioner saknar planeringstider i veckans projekt.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="bg-amber-500/15 border border-amber-500/30 rounded-xl p-3 text-amber-200 text-xs flex items-start gap-2.5">
+                <span className="text-base shrink-0">⚠️</span>
+                <div>
+                  <span className="font-bold text-amber-100">Kräver tidsättning i Rentman:</span> Dessa funktioner har lagts till i projekt men saknar start- och sluttid (har endast duration). De kan inte schemaläggas på personal förrän de placeras på tidslinjen i Rentman.
+                </div>
+              </div>
+
+              {unscheduledFunctions.map(func => (
+                <div
+                  key={func.id}
+                  onClick={() => onFunctionClick && onFunctionClick(func)}
+                  className="bg-white/[0.04] hover:bg-white/[0.08] active:scale-[0.98] transition-all border border-amber-500/30 border-l-[4px] border-l-amber-500 rounded-xl p-3 cursor-pointer shadow-sm flex flex-col gap-2"
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="min-w-0">
+                      <div className="text-white font-bold text-sm truncate" title={func.name}>
+                        {func.name}
+                      </div>
+                      {func.projectName && (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {func.projectColor && (
+                            <div 
+                              className="w-2 h-2 rounded-full shrink-0" 
+                              style={{ backgroundColor: func.projectColor.startsWith('#') ? func.projectColor : `#${func.projectColor}` }} 
+                            />
+                          )}
+                          <span className="text-white/70 text-xs truncate max-w-[200px]" title={func.projectName}>
+                            {func.projectName}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold shrink-0">
+                      {func.durationHours ? `${func.durationHours}h duration` : 'Obestämd tid'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1.5 border-t border-white/5 text-[11px] text-white/50">
+                    <span>Behov: {func.amount || 1} pers</span>
+                    <span className="text-amber-400 font-medium text-[10px] flex items-center gap-1">
+                      <span>⚠️ Ej tidsatt</span>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : sortedTasks.length === 0 ? (
           <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-center p-6 text-white/40">
             {activeTab === 'active' ? (
               <>

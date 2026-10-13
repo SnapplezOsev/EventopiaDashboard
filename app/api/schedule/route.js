@@ -183,6 +183,7 @@ export async function GET(request) {
     };
 
     const functions = [];
+    const unscheduledFunctions = [];
     const processedSubprojects = new Set();
     const processedProjects = new Set();
     const localAssignments = getLocalAssignments();
@@ -194,13 +195,26 @@ export async function GET(request) {
       const projectId = extractId(fn.project) || (subproject ? extractId(subproject.project) : null);
       const project = projectMap[projectId] || {};
 
-      // Functions MUST have an explicit schedule time (planperiod or usageperiod or start)
-      // Unscheduled functions without dates should not inherit multi-week subproject spans
-      const planStart = fn.planperiod_start || fn.usageperiod_start || fn.start;
-      const planEnd = fn.planperiod_end || fn.usageperiod_end || fn.end || planStart;
+      // Functions schedule time check
+      let isUnscheduled = false;
+      let planStart = fn.planperiod_start || fn.usageperiod_start || fn.start;
+      let planEnd = fn.planperiod_end || fn.usageperiod_end || fn.end || planStart;
 
-      if (!planStart) continue;
-      if (!isInWeek(planStart, planEnd)) continue;
+      if (!planStart) {
+        // Unscheduled function without explicit dates (duration only or no planperiod in Rentman)
+        const spStart = subproject?.planperiod_start || subproject?.usageperiod_start || project?.planperiod_start || project?.usageperiod_start;
+        const spEnd = subproject?.planperiod_end || subproject?.usageperiod_end || project?.planperiod_end || project?.usageperiod_end || spStart;
+        if (!spStart || !isInWeek(spStart, spEnd)) {
+          continue; // Does not belong to this week's projects
+        }
+        isUnscheduled = true;
+        // Position it on the project's start date, clamped to current week
+        const spStartDate = new Date(spStart);
+        planStart = spStartDate < weekStart ? weekStart.toISOString() : spStart;
+        planEnd = planStart;
+      } else {
+        if (!isInWeek(planStart, planEnd)) continue;
+      }
 
       if (subprojectId) processedSubprojects.add(subprojectId);
       if (projectId) processedProjects.add(projectId);
@@ -282,10 +296,12 @@ export async function GET(request) {
 
       const fnName = fn.name || functionGroupName || 'Funktion';
 
-      functions.push({
+      const functionObj = {
         id: fn.id,
         name: fnName,
         type: fn.type || 'crew_function',
+        isUnscheduled,
+        durationHours: fn.duration ? Math.round((fn.duration / 3600) * 10) / 10 : null,
         functionGroupId: functionGroupId || null,
         functionGroupName: functionGroupName || null,
         projectId: rawProjName ? (project.id || projectId || null) : null,
@@ -300,7 +316,12 @@ export async function GET(request) {
         planperiod_start: planStart,
         planperiod_end: planEnd || planStart,
         assignedCrew
-      });
+      };
+
+      functions.push(functionObj);
+      if (isUnscheduled) {
+        unscheduledFunctions.push(functionObj);
+      }
     }
 
     // 3. Process Appointments
@@ -459,6 +480,7 @@ export async function GET(request) {
       functions,
       crew: crewResult,
       tasks,
+      unscheduledFunctions,
       pendingRentmanSync
     };
 

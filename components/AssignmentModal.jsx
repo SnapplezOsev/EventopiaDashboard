@@ -66,8 +66,11 @@ export default function AssignmentModal({
                   </span>
                 )}
 
-                <div className="text-sm text-white/80 bg-black/40 px-3 py-1 rounded-lg font-medium border border-white/10">
-                  {formatDate(func.planperiod_start)} | {formatTime(func.planperiod_start)} – {formatTime(func.planperiod_end)}
+                <div className={`text-sm px-3 py-1 rounded-lg font-medium border ${func.isUnscheduled ? 'text-amber-200 bg-amber-500/20 border-amber-500/30' : 'text-white/80 bg-black/40 border-white/10'}`}>
+                  {func.isUnscheduled 
+                    ? `⚠️ Obestämd tid ${func.durationHours ? `(${func.durationHours}h)` : ''}`
+                    : `${formatDate(func.planperiod_start)} | ${formatTime(func.planperiod_start)} – ${formatTime(func.planperiod_end)}`
+                  }
                 </div>
 
                 {!isAppointment && (
@@ -124,6 +127,23 @@ export default function AssignmentModal({
             </div>
           </div>
         </div>
+
+        {/* Unscheduled Warning Banner */}
+        {func.isUnscheduled && (
+          <div className="mx-6 mt-4 p-4 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-200 flex items-start gap-3 shrink-0">
+            <span className="text-2xl shrink-0">⚠️</span>
+            <div className="text-sm">
+              <div className="font-bold text-amber-100 text-base">Funktionen saknar planeringstid i Rentman</div>
+              <div className="text-amber-200/90 mt-1 leading-relaxed">
+                Denna funktion har lagts till i projektet med en beräknad längd {func.durationHours ? `på ${func.durationHours} timmar` : ''}, men har ingen specifik start- och sluttid på tidslinjen.
+                I Rentman visas den med en varning och kan inte tilldelas på tidslinjen förrän en planeringstid har satts.
+              </div>
+              <div className="mt-2 text-xs text-amber-300 font-semibold bg-black/20 px-3 py-1 rounded-lg inline-block border border-amber-500/20">
+                💡 Åtgärd: Öppna projektet i Rentman och ange en planeringstid för funktionen.
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Body - Split 2-Column Layout */}
         <div className="p-5 md:p-6 overflow-y-auto flex-1 custom-scrollbar">

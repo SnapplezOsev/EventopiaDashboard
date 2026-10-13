@@ -14,6 +14,7 @@ import RentmanSyncModal from '@/components/RentmanSyncModal';
 // --- State Reducer ---
 const initialState = {
   functions: [],
+  unscheduledFunctions: [],
   crew: { internal: [], freelancers: [] },
   tasks: [],
   weekStart: null,
@@ -36,6 +37,7 @@ function dashboardReducer(state, action) {
         ...state,
         isLoading: false,
         functions: action.payload.functions || [],
+        unscheduledFunctions: action.payload.unscheduledFunctions || [],
         crew: action.payload.crew || { internal: [], freelancers: [] },
         tasks: action.payload.tasks || [],
         weekStart: action.payload.weekStart,
@@ -627,8 +629,10 @@ export default function Dashboard() {
           <div className="flex-1 min-h-0">
             <TaskSidebar 
               tasks={state.tasks} 
+              unscheduledFunctions={state.unscheduledFunctions || []}
               onTaskClick={handleTaskClick} 
               onCreateTask={handleCreateTask} 
+              onFunctionClick={handleFunctionClick}
             />
           </div>
           <div className="flex gap-3">
