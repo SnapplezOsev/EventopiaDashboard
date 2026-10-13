@@ -2,28 +2,47 @@ import { NextResponse } from 'next/server';
 import { execSync, spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import versionData from '@/version.json';
+import { getUpdateStatus, setUpdateStatus, resetUpdateStatus } from '@/lib/updateStatus';
 
 export const dynamic = 'force-dynamic';
 
 function getLocalCommit() {
+  // 1. Try git CLI
   try {
     return execSync('git rev-parse --short HEAD', { timeout: 3000 }).toString().trim();
-  } catch (err) {
-    try {
-      const gitHeadPath = path.join(process.cwd(), '.git/HEAD');
-      if (fs.existsSync(gitHeadPath)) {
-        const head = fs.readFileSync(gitHeadPath, 'utf8').trim();
-        if (head.startsWith('ref: ')) {
-          const refPath = path.join(process.cwd(), '.git', head.slice(5));
-          if (fs.existsSync(refPath)) {
-            return fs.readFileSync(refPath, 'utf8').trim().slice(0, 7);
-          }
-        }
-        return head.slice(0, 7);
-      }
-    } catch (e) {}
-    return 'unknown';
+  } catch (err) {}
+
+  // 2. Try data/version.json (persisted volume)
+  try {
+    const dataVersionPath = path.join(process.cwd(), 'data/version.json');
+    if (fs.existsSync(dataVersionPath)) {
+      const parsed = JSON.parse(fs.readFileSync(dataVersionPath, 'utf8'));
+      if (parsed?.commit) return parsed.commit;
+    }
+  } catch (e) {}
+
+  // 3. Try bundled version.json
+  if (versionData?.commit && versionData.commit !== 'unknown') {
+    return versionData.commit;
   }
+
+  // 4. Try reading .git/HEAD
+  try {
+    const gitHeadPath = path.join(process.cwd(), '.git/HEAD');
+    if (fs.existsSync(gitHeadPath)) {
+      const head = fs.readFileSync(gitHeadPath, 'utf8').trim();
+      if (head.startsWith('ref: ')) {
+        const refPath = path.join(process.cwd(), '.git', head.slice(5));
+        if (fs.existsSync(refPath)) {
+          return fs.readFileSync(refPath, 'utf8').trim().slice(0, 7);
+        }
+      }
+      return head.slice(0, 7);
+    }
+  } catch (e) {}
+
+  return 'unknown';
 }
 
 export async function GET() {
@@ -31,6 +50,7 @@ export async function GET() {
   let latestCommit = null;
   let hasUpdate = false;
   let commitMessage = '';
+  const isDocker = fs.existsSync('/.dockerenv');
 
   try {
     const res = await fetch('https://api.github.com/repos/SnapplezOsev/EventopiaDashboard/commits/main', {
@@ -53,11 +73,15 @@ export async function GET() {
     console.warn('Could not check GitHub for updates:', err.message);
   }
 
+  const updateStatus = getUpdateStatus();
+
   return NextResponse.json({
     currentCommit,
     latestCommit: latestCommit || currentCommit,
     commitMessage,
     hasUpdate,
+    isDocker,
+    updateStatus,
     checkedAt: new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }),
   });
 }
@@ -69,9 +93,10 @@ export async function POST() {
 
     if (isDocker) {
       return NextResponse.json({
-        success: true,
-        message: 'Dashboarden körs i Docker. Kör "docker compose up -d --build" för att bygga och starta om med senaste koden.',
-      });
+        success: false,
+        isDocker: true,
+        message: 'Dashboarden körs i en lokal Docker-container. Automatisk systemd-uppdatering stöds i kiosk-miljön på NUC:en. För att bygga och starta om med senaste koden lokalt, kör "docker compose up -d --build" i terminalen.',
+      }, { status: 400 });
     }
 
     if (isLinux) {
@@ -82,6 +107,16 @@ export async function POST() {
       const script = candidates.find(p => fs.existsSync(p));
 
       if (script) {
+        // Set initial status so UI starts tracking immediately
+        setUpdateStatus({
+          status: 'running',
+          stage: 'starting',
+          message: 'Startar uppdateringsskript...',
+          progress: 5,
+          startedAt: Date.now(),
+          error: null
+        });
+
         // Trigger update script with sudo bash
         const child = spawn('sudo', ['bash', script, '--force'], {
           detached: true,
@@ -91,21 +126,27 @@ export async function POST() {
 
         return NextResponse.json({
           success: true,
-          message: 'Uppdatering påbörjad! NUC:en bygger om appen. Sidan laddas om automatiskt.',
+          message: 'Uppdatering påbörjad.',
         });
       } else {
         return NextResponse.json({
+          success: false,
           error: 'Kunde inte hitta deploy/update.sh på enheten.',
         }, { status: 404 });
       }
     }
 
     return NextResponse.json({
-      success: true,
-      message: 'Lokal miljö (Windows): Uppdatera via "git pull" och "npm run build" / omstart av container.',
-    });
+      success: false,
+      message: 'Lokal miljö (Windows): Automatisk uppdatering stöds endast på Linux (NUC).',
+    }, { status: 400 });
   } catch (err) {
     console.error('Trigger update error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
+}
+
+export async function DELETE() {
+  resetUpdateStatus();
+  return NextResponse.json({ success: true });
 }
