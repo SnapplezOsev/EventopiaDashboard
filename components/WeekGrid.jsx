@@ -1,6 +1,62 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import EventCard from '@/components/EventCard';
+import GroupedEventCard from '@/components/GroupedEventCard';
+
+function organizeDayEvents(dayFunctions) {
+  const groupsMap = new Map();
+  const standalone = [];
+
+  for (const f of dayFunctions) {
+    // Only group functions if they have a functionGroupId and a project
+    const groupKey = f.functionGroupId && f.projectName
+      ? `${f.projectId || ''}_${f.functionGroupId}`
+      : null;
+
+    if (groupKey) {
+      if (!groupsMap.has(groupKey)) {
+        groupsMap.set(groupKey, []);
+      }
+      groupsMap.get(groupKey).push(f);
+    } else {
+      standalone.push({
+        type: 'single',
+        func: f,
+        sortTime: new Date(f.planperiod_start).getTime()
+      });
+    }
+  }
+
+  const result = [...standalone];
+
+  for (const [key, groupFuncs] of groupsMap.entries()) {
+    if (groupFuncs.length >= 2) {
+      // 2 or more functions share the same function group on this day -> group together
+      const earliestStart = Math.min(...groupFuncs.map(f => new Date(f.planperiod_start).getTime()));
+      result.push({
+        type: 'group',
+        groupId: groupFuncs[0].functionGroupId,
+        groupName: groupFuncs[0].functionGroupName,
+        projectId: groupFuncs[0].projectId,
+        projectName: groupFuncs[0].projectName,
+        projectColor: groupFuncs[0].projectColor,
+        customerName: groupFuncs[0].customerName,
+        functions: groupFuncs.sort((a, b) => new Date(a.planperiod_start) - new Date(b.planperiod_start)),
+        sortTime: earliestStart,
+      });
+    } else {
+      // Standalone single function in this group on this day
+      result.push({
+        type: 'single',
+        func: groupFuncs[0],
+        sortTime: new Date(groupFuncs[0].planperiod_start).getTime(),
+      });
+    }
+  }
+
+  // Sort all cards on the day by earliest start time
+  return result.sort((a, b) => a.sortTime - b.sortTime);
+}
 
 export default function WeekGrid({ functions = [], weekStart, onFunctionClick }) {
   const scrollContainerRef = useRef(null);
@@ -79,6 +135,7 @@ export default function WeekGrid({ functions = [], weekStart, onFunctionClick })
         }).sort((a, b) => new Date(a.planperiod_start) - new Date(b.planperiod_start));
 
         const unassignedCount = dayFunctions.filter(f => !f.assignedCrew || f.assignedCrew.length < (f.amount || 1)).length;
+        const organizedItems = organizeDayEvents(dayFunctions);
 
         return (
           <div 
@@ -96,9 +153,24 @@ export default function WeekGrid({ functions = [], weekStart, onFunctionClick })
               )}
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-              {dayFunctions.map(func => (
-                <EventCard key={func.id} func={func} onClick={() => onFunctionClick(func)} />
-              ))}
+              {organizedItems.map((item, i) => {
+                if (item.type === 'group') {
+                  return (
+                    <GroupedEventCard
+                      key={`group-${item.groupId}-${i}`}
+                      group={item}
+                      onFunctionClick={onFunctionClick}
+                    />
+                  );
+                }
+                return (
+                  <EventCard
+                    key={item.func.id}
+                    func={item.func}
+                    onClick={() => onFunctionClick(item.func)}
+                  />
+                );
+              })}
             </div>
           </div>
         );

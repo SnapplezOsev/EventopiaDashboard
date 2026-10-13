@@ -81,7 +81,8 @@ export async function GET(request) {
       allContacts,
       allTasks,
       allTaskStatuses,
-      allTaskAssignments
+      allTaskAssignments,
+      allProjFunctionGroups
     ] = await Promise.all([
       safeFetch('/projects?limit=1000&sort=-id'),
       safeFetch('/subprojects?limit=1000&sort=-id'),
@@ -97,7 +98,8 @@ export async function GET(request) {
       safeFetch('/contacts?limit=1000'),
       safeFetch('/tasks?limit=500&sort=-id'),
       safeFetch('/taskstatuses?limit=100'),
-      safeFetch('/taskassignments?limit=1000&sort=-id')
+      safeFetch('/taskassignments?limit=1000&sort=-id'),
+      safeFetch('/projectfunctiongroups?limit=1000&sort=-id')
     ]);
 
     // Lookup maps
@@ -106,6 +108,11 @@ export async function GET(request) {
 
     const subprojectMap = {};
     for (const sp of allSubprojects) subprojectMap[sp.id] = sp;
+
+    const functionGroupMap = {};
+    for (const fg of allProjFunctionGroups) {
+      functionGroupMap[fg.id] = fg.name || fg.displayname || '';
+    }
 
     const projectStatusMap = {};
     for (const st of allProjectStatuses) {
@@ -250,15 +257,35 @@ export async function GET(request) {
         .map(pv => vehicleMap[extractId(pv.vehicle)])
         .filter(Boolean);
 
+      const functionGroupId = extractId(fn.group);
+      const functionGroupName = functionGroupId ? (functionGroupMap[functionGroupId] || '') : '';
+
+      // Determine clean project name (prevent "Projekt", "Shifts project", "Shift" for internal shifts)
+      let rawProjName = project.name || subproject?.name || '';
+      const lowerProj = rawProjName.toLowerCase().trim();
+      const isInternalShift = fn.type === 'shift' || 
+                              projectId === 195 || 
+                              lowerProj === 'projekt' || 
+                              lowerProj === 'shifts project' || 
+                              lowerProj === 'shift';
+
+      if (isInternalShift) {
+        rawProjName = '';
+      }
+
+      const fnName = fn.name || functionGroupName || 'Funktion';
+
       functions.push({
         id: fn.id,
-        name: fn.name || 'Funktion',
+        name: fnName,
         type: fn.type || 'crew_function',
-        projectId: project.id || projectId || `proj-${fn.id}`,
-        projectName: project.name || subproject?.name || 'Projekt',
-        projectColor: formatHexColor(project.color || subproject?.color, '#14B4EC'),
-        customerName,
-        locationName,
+        functionGroupId: functionGroupId || null,
+        functionGroupName: functionGroupName || null,
+        projectId: rawProjName ? (project.id || projectId || null) : null,
+        projectName: rawProjName,
+        projectColor: rawProjName ? formatHexColor(project.color || subproject?.color, '#14B4EC') : null,
+        customerName: rawProjName ? customerName : '',
+        locationName: rawProjName ? locationName : '',
         statusName,
         vehicleNames,
         amount: fn.amount || 1,
@@ -397,7 +424,7 @@ export async function GET(request) {
         id: la.id,
         functionId: la.functionId,
         functionName: matchingFn?.name || la.functionName || 'Funktion',
-        projectName: matchingFn?.projectName || la.projectName || 'Projekt',
+        projectName: matchingFn?.projectName || la.projectName || '',
         projectColor: matchingFn?.projectColor || la.projectColor || '#14B4EC',
         planperiod_start: matchingFn?.planperiod_start || la.planperiod_start || null,
         planperiod_end: matchingFn?.planperiod_end || la.planperiod_end || null,

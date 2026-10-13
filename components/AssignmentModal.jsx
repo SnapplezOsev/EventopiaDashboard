@@ -77,8 +77,20 @@ export default function AssignmentModal({
                 )}
               </div>
               <h2 className="text-2xl md:text-3xl font-bold text-white leading-tight truncate">{func.name}</h2>
-              {!isAppointment && (
-                <div className="text-lg font-medium text-white/60 truncate mt-0.5">{func.projectName}</div>
+              {!isAppointment && func.projectName && (
+                <div className="text-lg font-medium text-white/60 truncate mt-0.5 flex items-center gap-2">
+                  <span>{func.projectName}</span>
+                  {func.functionGroupName && (
+                    <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-lg font-bold">
+                      📁 {func.functionGroupName}
+                    </span>
+                  )}
+                </div>
+              )}
+              {!isAppointment && !func.projectName && func.functionGroupName && (
+                <div className="text-sm font-medium text-blue-300 truncate mt-0.5 flex items-center gap-1.5">
+                  <span>📁 Funktionsgrupp: {func.functionGroupName}</span>
+                </div>
               )}
             </div>
 

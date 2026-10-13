@@ -16,11 +16,15 @@ export default function EventCard({ func, onClick }) {
   // Create initials e.g. "Emil Reinfeldt" -> "ER"
   const initials = func.assignedCrew?.map(c => {
     const parts = c.name.split(' ');
-    if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length-1][0]}`.toUpperCase();
+    if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
     return parts[0].substring(0, 2).toUpperCase();
   }).join(', ') || 'Ingen';
 
-  const projStatusClass = getStatusBadgeStyle(func.statusName);
+  const isInternalShift = !func.projectName && func.type === 'shift';
+  const displayStatus = isInternalShift && (func.statusName === 'Koncept' || !func.statusName) 
+    ? 'Skift' 
+    : (func.statusName || 'Okänd');
+  const projStatusClass = getStatusBadgeStyle(displayStatus);
 
   return (
     <div 
@@ -32,21 +36,42 @@ export default function EventCard({ func, onClick }) {
         <div className="bg-white/10 text-white text-sm px-2 py-0.5 rounded-md font-bold tracking-wide">
           {timeString}
         </div>
-        <div className="font-bold text-white text-sm truncate max-w-[150px] text-right">
+        <div className="font-bold text-white text-sm truncate max-w-[150px] text-right" title={func.name}>
           {func.name}
         </div>
       </div>
 
-      {/* Row 2: Project and Assigned Initials */}
+      {/* Row 2: Project, Function Group, and Assigned Initials */}
       <div className="flex justify-between items-center w-full">
         <div className="flex items-center gap-1.5 min-w-0">
-          {func.projectColor && (
-            <div className="w-2 h-2 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: func.projectColor.startsWith('#') ? func.projectColor : `#${func.projectColor}` }}></div>
+          {func.projectName ? (
+            <>
+              {func.projectColor && (
+                <div 
+                  className="w-2 h-2 shrink-0 rounded-full shadow-sm" 
+                  style={{ backgroundColor: func.projectColor.startsWith('#') ? func.projectColor : `#${func.projectColor}` }}
+                />
+              )}
+              <div className="text-white/70 text-xs truncate max-w-[140px] font-medium" title={func.projectName}>
+                {func.projectName}
+              </div>
+            </>
+          ) : (
+            <div className="text-white/40 text-xs italic font-medium">
+              {isInternalShift ? 'Internt skift' : ''}
+            </div>
           )}
-          <div className="text-white/70 text-xs truncate max-w-[160px] font-medium">
-            {func.projectName}
-          </div>
+
+          {func.functionGroupName && (
+            <span 
+              className="text-[10px] text-blue-300 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.2 rounded-md font-medium shrink-0 truncate max-w-[90px]"
+              title={`Funktionsgrupp: ${func.functionGroupName}`}
+            >
+              📁 {func.functionGroupName}
+            </span>
+          )}
         </div>
+
         <div className={`text-[11px] shrink-0 px-1.5 py-0.5 rounded font-bold tracking-widest ${isFullyAssigned ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10'}`}>
           [{initials}]
         </div>
@@ -56,7 +81,7 @@ export default function EventCard({ func, onClick }) {
       <div className="flex justify-between items-center mt-1 border-t border-white/5 pt-1.5 gap-1">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className={`text-[10px] px-2 py-0.5 rounded-full border ${projStatusClass} font-semibold uppercase tracking-wider shrink-0`}>
-            {func.statusName || 'Okänd'}
+            {displayStatus}
           </span>
           {func.vehicleNames && func.vehicleNames.length > 0 && (
             <span className="text-[10px] px-2 py-0.5 rounded-full border bg-white/10 text-white/80 border-white/20 font-medium truncate max-w-[80px]" title={func.vehicleNames.join(', ')}>
