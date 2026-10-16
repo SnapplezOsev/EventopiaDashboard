@@ -23,7 +23,7 @@ function toYYYYMMDD(str) {
   return str;
 }
 
-export default function TaskModal({ task, crew, onClose, onSave, onAssign }) {
+export default function TaskModal({ task, crew, onClose, onSave, onAssign, onUnassignCrew }) {
   const isNew = !task;
   const [name, setName] = useState(task?.name || '');
   const [details, setDetails] = useState(task?.details || '');
@@ -45,6 +45,7 @@ export default function TaskModal({ task, crew, onClose, onSave, onAssign }) {
       name,
       details,
       deadline: toYYYYMMDD(deadline) || null,
+      color: task?.color || '3b82f6',
       pendingAssignments,
     });
     setIsSaving(false);
@@ -56,6 +57,7 @@ export default function TaskModal({ task, crew, onClose, onSave, onAssign }) {
     await onSave({
       id: task.id,
       completed: !task.isCompleted,
+      color: task?.color || '3b82f6',
     });
     setIsSaving(false);
   };
@@ -179,7 +181,19 @@ export default function TaskModal({ task, crew, onClose, onSave, onAssign }) {
               {(task?.assignedCrew || []).map(ac => (
                 <div key={ac.crewId} className="flex justify-between items-center bg-white/[0.04] p-3 rounded-lg border border-white/5">
                   <span className="text-white font-medium">{ac.name}</span>
-                  <span className="text-green-400 bg-green-500/10 px-2 py-0.5 rounded text-xs font-bold uppercase">Tilldelad</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-400 bg-green-500/10 px-2 py-0.5 rounded text-xs font-bold uppercase">Tilldelad</span>
+                    {onUnassignCrew && (
+                      <button
+                        type="button"
+                        onClick={() => onUnassignCrew(task.id, ac.crewId, ac.assignmentId)}
+                        className="text-red-400 hover:text-red-300 text-xs px-2 py-0.5 rounded bg-red-500/10 hover:bg-red-500/20 transition-all font-semibold"
+                        title="Ta bort tilldelning"
+                      >
+                        Ta bort
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
               {pendingAssignments.map(crewId => {

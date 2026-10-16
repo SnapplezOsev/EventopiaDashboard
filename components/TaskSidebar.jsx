@@ -7,7 +7,8 @@ export default function TaskSidebar({
   unscheduledFunctions = [],
   onTaskClick, 
   onCreateTask,
-  onFunctionClick 
+  onFunctionClick,
+  onToggleTaskComplete
 }) {
   const [activeTab, setActiveTab] = useState('active'); // 'active' | 'completed' | 'unscheduled'
 
@@ -226,12 +227,22 @@ export default function TaskSidebar({
                 }`}
               >
                 <div className="flex justify-between items-start gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {task.isCompleted && (
-                      <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 text-xs font-bold">
-                        ✓
-                      </span>
-                    )}
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleTaskComplete && onToggleTaskComplete(task);
+                      }}
+                      title={task.isCompleted ? "Markera som ej klar" : "Markera som klar"}
+                      className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                        task.isCompleted
+                          ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/40'
+                          : 'border border-white/30 hover:border-emerald-400 hover:bg-emerald-500/10 text-transparent hover:text-emerald-400'
+                      }`}
+                    >
+                      <span className="text-xs font-bold leading-none">✓</span>
+                    </button>
                     <span className={`font-medium text-sm leading-tight truncate ${
                       task.isCompleted ? 'text-white/60 line-through' : 'text-white'
                     }`}>

@@ -414,6 +414,29 @@ export default function Dashboard() {
     }
   }, [fetchData]);
 
+  const handleToggleTaskComplete = useCallback(async (task) => {
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: task.id,
+          name: task.name,
+          color: task.color || '3b82f6',
+          completed: !task.isCompleted,
+        }),
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to toggle task completion');
+      }
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert(`Misslyckades att uppdatera uppgiftens status: ${err.message}`);
+    }
+  }, [fetchData]);
+
   const handleTaskAssign = useCallback(async (taskId, crewId) => {
     try {
       const res = await fetch('/api/tasks/assign', {
@@ -427,6 +450,22 @@ export default function Dashboard() {
     } catch (err) {
       console.error(err);
       alert('Misslyckades att tilldela uppgiften.');
+    }
+  }, [fetchData]);
+
+  const handleTaskUnassign = useCallback(async (taskId, crewId, assignmentId) => {
+    try {
+      const res = await fetch('/api/tasks/assign', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, crewId, assignmentId }),
+      });
+      if (!res.ok) throw new Error('Failed to unassign crew from task');
+      dispatch({ type: 'CLOSE_TASK_MODAL' });
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Misslyckades att ta bort tilldelning från uppgiften.');
     }
   }, [fetchData]);
 
@@ -657,6 +696,7 @@ export default function Dashboard() {
               onTaskClick={handleTaskClick} 
               onCreateTask={handleCreateTask} 
               onFunctionClick={handleFunctionClick}
+              onToggleTaskComplete={handleToggleTaskComplete}
             />
           </div>
           <div className="flex gap-3">
@@ -706,6 +746,7 @@ export default function Dashboard() {
           onClose={() => dispatch({ type: 'CLOSE_TASK_MODAL' })}
           onSave={handleSaveTask}
           onAssign={handleTaskAssign}
+          onUnassignCrew={handleTaskUnassign}
         />
       )}
 

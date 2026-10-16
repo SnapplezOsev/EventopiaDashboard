@@ -477,7 +477,9 @@ export async function GET(request) {
         .map(ta => {
           const crewId = extractId(ta.crew);
           const c = [...crewResult.internal, ...crewResult.freelancers].find(x => x.id === crewId);
-          return c ? { crewId, name: c.name } : { crewId };
+          return c 
+            ? { assignmentId: ta.id, crewId, name: c.name } 
+            : { assignmentId: ta.id, crewId, name: crewMap[crewId] || 'Okänd' };
         });
 
       let sName = statusInfo.name;
@@ -488,6 +490,7 @@ export async function GET(request) {
         id: t.id,
         name: t.name,
         details: t.details || '',
+        color: t.color || '3b82f6',
         status: sName,
         statusId: sId,
         statusColor: formatHexColor(statusInfo.color, '#F0F3F6'),
