@@ -11,6 +11,7 @@ import MeetingModal from '@/components/MeetingModal';
 import Screensaver from '@/components/Screensaver';
 import RentmanSyncModal from '@/components/RentmanSyncModal';
 import WarehouseView from '@/components/WarehouseView';
+import { getWeekDetails } from '@/lib/weekUtils';
 
 // --- State Reducer ---
 const initialState = {
@@ -55,8 +56,34 @@ function dashboardReducer(state, action) {
       return { ...state, selectedTask: action.payload, isTaskModalOpen: true };
     case 'CLOSE_TASK_MODAL':
       return { ...state, selectedTask: null, isTaskModalOpen: false };
+    case 'NAVIGATE_WEEK': {
+      const { offset, cachedData } = action.payload;
+      if (cachedData) {
+        return {
+          ...state,
+          weekOffset: offset,
+          isLoading: false,
+          error: null,
+          functions: cachedData.functions || [],
+          unscheduledFunctions: cachedData.unscheduledFunctions || [],
+          crew: cachedData.crew || state.crew,
+          tasks: cachedData.tasks || state.tasks,
+          weekStart: cachedData.weekStart,
+          weekEnd: cachedData.weekEnd,
+          pendingRentmanSync: cachedData.pendingRentmanSync || state.pendingRentmanSync,
+        };
+      }
+      return {
+        ...state,
+        weekOffset: offset,
+        isLoading: true,
+        error: null,
+        functions: [],
+        unscheduledFunctions: [],
+      };
+    }
     case 'CHANGE_WEEK':
-      return { ...state, weekOffset: state.weekOffset + action.payload };
+      return { ...state, weekOffset: state.weekOffset + action.payload, isLoading: true, functions: [] };
     case 'RESET_WEEK':
       return { ...state, weekOffset: 0 };
     case 'OPTIMISTIC_ASSIGN': {
@@ -109,27 +136,6 @@ function dashboardReducer(state, action) {
     default:
       return state;
   }
-}
-
-// --- Helper: Get ISO week string from offset ---
-function getWeekString(offset = 0) {
-  const now = new Date();
-  const target = new Date(now);
-  target.setDate(target.getDate() + offset * 7);
-
-  // Get Monday of that week
-  const day = target.getDay();
-  const diff = target.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(target.setDate(diff));
-
-  // ISO week number
-  const startOfYear = new Date(monday.getFullYear(), 0, 1);
-  const days = Math.floor((monday - startOfYear) / (24 * 60 * 60 * 1000));
-  const weekNum = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-
-  const year = monday.getFullYear();
-  const weekStr = `${year}-W${weekNum.toString().padStart(2, '0')}`;
-  return weekStr;
 }
 
 // --- Helper: Get adaptive refresh interval ---
@@ -218,14 +224,31 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Periodic warehouse refresh
+  // Fetch warehouse data immediately when switching to warehouse view
   useEffect(() => {
-    fetchWarehouseData();
-    const interval = setInterval(() => {
+    if (currentView === 'warehouse') {
       fetchWarehouseData();
-    }, 45 * 1000);
-    return () => clearInterval(interval);
-  }, [fetchWarehouseData]);
+    }
+  }, [currentView, fetchWarehouseData]);
+
+  // Periodic warehouse refresh: deferred initial load on startup, only poll when viewing warehouse
+  useEffect(() => {
+    // Initial fetch deferred by 4 seconds so schedule gets 100% bandwidth on startup
+    const initialTimer = setTimeout(() => {
+      fetchWarehouseData();
+    }, 4000);
+
+    const interval = setInterval(() => {
+      if (currentView === 'warehouse') {
+        fetchWarehouseData();
+      }
+    }, 60 * 1000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [currentView, fetchWarehouseData]);
 
   // Warehouse Actions
   const handleTogglePack = useCallback(async (subprojectId, isPacked) => {
@@ -535,21 +558,89 @@ export default function Dashboard() {
     });
   }, []);
 
-  // Fetch data
-  const fetchData = useCallback(async () => {
+  // Cache of fetched weeks: weekStr -> { data, timestamp }
+  const weekCacheRef = useRef(new Map());
+  const CLIENT_WEEK_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+  const currentOffsetRef = useRef(state.weekOffset);
+  currentOffsetRef.current = state.weekOffset;
+  const prefetchTimerRef = useRef(null);
+
+  // Gentle, idle-only prefetch of adjacent weeks to avoid saturating Rentman API
+  const scheduleIdlePrefetch = useCallback((baseOffset) => {
+    if (prefetchTimerRef.current) {
+      clearTimeout(prefetchTimerRef.current);
+      prefetchTimerRef.current = null;
+    }
+
+    // Wait 2.5s of idle before prefetching next week (+1)
+    prefetchTimerRef.current = setTimeout(() => {
+      const nextOffset = baseOffset + 1;
+      const { weekStr: nextWeekStr } = getWeekDetails(nextOffset);
+      const existingNext = weekCacheRef.current.get(nextWeekStr);
+
+      const doPrefetchNext = !existingNext || (Date.now() - existingNext.timestamp > CLIENT_WEEK_CACHE_TTL);
+      if (doPrefetchNext) {
+        fetch(`/api/schedule?week=${nextWeekStr}`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data?.functions) {
+              weekCacheRef.current.set(nextWeekStr, { data, timestamp: Date.now() });
+            }
+          })
+          .catch(() => {});
+      }
+
+      // After another 2.5s of idle, prefetch previous week (-1)
+      prefetchTimerRef.current = setTimeout(() => {
+        const prevOffset = baseOffset - 1;
+        const { weekStr: prevWeekStr } = getWeekDetails(prevOffset);
+        const existingPrev = weekCacheRef.current.get(prevWeekStr);
+
+        const doPrefetchPrev = !existingPrev || (Date.now() - existingPrev.timestamp > CLIENT_WEEK_CACHE_TTL);
+        if (doPrefetchPrev) {
+          fetch(`/api/schedule?week=${prevWeekStr}`)
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+              if (data?.functions) {
+                weekCacheRef.current.set(prevWeekStr, { data, timestamp: Date.now() });
+              }
+            })
+            .catch(() => {});
+        }
+      }, 2500);
+    }, 2500);
+  }, []);
+
+  // Fetch data with client-side cache and optional forceRefresh
+  const fetchData = useCallback(async (forceRefresh = false) => {
+    const { weekStr } = getWeekDetails(state.weekOffset);
+
+    // If not forcing refresh, check client cache first
+    if (!forceRefresh) {
+      const cached = weekCacheRef.current.get(weekStr);
+      if (cached?.data && (Date.now() - cached.timestamp < CLIENT_WEEK_CACHE_TTL)) {
+        dispatch({ type: 'FETCH_SUCCESS', payload: cached.data });
+        setRetryCountdown(null);
+        scheduleIdlePrefetch(state.weekOffset);
+        return;
+      }
+    }
+
     dispatch({ type: 'FETCH_START' });
     try {
-      const weekStr = getWeekString(state.weekOffset);
-      const res = await fetch(`/api/schedule?week=${weekStr}`);
+      const res = await fetch(`/api/schedule?week=${weekStr}${forceRefresh ? '&refresh=true' : ''}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      weekCacheRef.current.set(weekStr, { data, timestamp: Date.now() });
       dispatch({ type: 'FETCH_SUCCESS', payload: data });
       setRetryCountdown(null);
+      // Gentle idle prefetch
+      scheduleIdlePrefetch(state.weekOffset);
     } catch (err) {
       console.error('Failed to fetch schedule:', err);
       dispatch({ type: 'FETCH_ERROR', payload: err.message });
     }
-  }, [state.weekOffset]);
+  }, [state.weekOffset, scheduleIdlePrefetch]);
 
   // Automatic retry timer on error (retries every 10 seconds)
   useEffect(() => {
@@ -562,7 +653,7 @@ export default function Dashboard() {
     const timer = setInterval(() => {
       setRetryCountdown(prev => {
         if (prev === null || prev <= 1) {
-          fetchData();
+          fetchData(true);
           return 10;
         }
         return prev - 1;
@@ -576,7 +667,7 @@ export default function Dashboard() {
   useEffect(() => {
     const handleOnline = () => {
       console.log('Network online — re-fetching schedule...');
-      fetchData();
+      fetchData(true);
     };
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
@@ -637,10 +728,55 @@ export default function Dashboard() {
     resetIdleTimer();
   }, [resetIdleTimer]);
 
-  // Handle week navigation
+  // Handle week navigation: instant switch if cached, or skeleton if loading
   const handleWeekChange = useCallback((delta) => {
-    dispatch({ type: 'CHANGE_WEEK', payload: delta });
-  }, []);
+    if (prefetchTimerRef.current) {
+      clearTimeout(prefetchTimerRef.current);
+      prefetchTimerRef.current = null;
+    }
+
+    const nextOffset = currentOffsetRef.current + delta;
+    currentOffsetRef.current = nextOffset;
+    const { weekStr } = getWeekDetails(nextOffset);
+    const cached = weekCacheRef.current.get(weekStr);
+
+    if (cached?.data && (Date.now() - cached.timestamp < CLIENT_WEEK_CACHE_TTL)) {
+      dispatch({ 
+        type: 'NAVIGATE_WEEK', 
+        payload: { offset: nextOffset, cachedData: cached.data } 
+      });
+      scheduleIdlePrefetch(nextOffset);
+    } else {
+      dispatch({ 
+        type: 'NAVIGATE_WEEK', 
+        payload: { offset: nextOffset, cachedData: null } 
+      });
+    }
+  }, [scheduleIdlePrefetch]);
+
+  const handleResetWeek = useCallback(() => {
+    if (prefetchTimerRef.current) {
+      clearTimeout(prefetchTimerRef.current);
+      prefetchTimerRef.current = null;
+    }
+
+    currentOffsetRef.current = 0;
+    const { weekStr } = getWeekDetails(0);
+    const cached = weekCacheRef.current.get(weekStr);
+
+    if (cached?.data && (Date.now() - cached.timestamp < CLIENT_WEEK_CACHE_TTL)) {
+      dispatch({ 
+        type: 'NAVIGATE_WEEK', 
+        payload: { offset: 0, cachedData: cached.data } 
+      });
+      scheduleIdlePrefetch(0);
+    } else {
+      dispatch({ 
+        type: 'NAVIGATE_WEEK', 
+        payload: { offset: 0, cachedData: null } 
+      });
+    }
+  }, [scheduleIdlePrefetch]);
 
   // Handle function selection
   const handleFunctionClick = useCallback((func) => {
@@ -670,7 +806,8 @@ export default function Dashboard() {
         throw new Error(errJson.error || 'Failed to save task');
       }
       dispatch({ type: 'CLOSE_TASK_MODAL' });
-      fetchData(); // Refresh tasks
+      weekCacheRef.current.clear();
+      fetchData(true); // Refresh tasks
       fetchWarehouseData(true);
     } catch (err) {
       console.error(err);
@@ -694,7 +831,8 @@ export default function Dashboard() {
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.error || 'Failed to toggle task completion');
       }
-      fetchData();
+      weekCacheRef.current.clear();
+      fetchData(true);
       fetchWarehouseData(true);
     } catch (err) {
       console.error(err);
@@ -711,7 +849,8 @@ export default function Dashboard() {
       });
       if (!res.ok) throw new Error('Failed to assign task');
       dispatch({ type: 'CLOSE_TASK_MODAL' });
-      fetchData();
+      weekCacheRef.current.clear();
+      fetchData(true);
     } catch (err) {
       console.error(err);
       alert('Misslyckades att tilldela uppgiften.');
@@ -727,7 +866,8 @@ export default function Dashboard() {
       });
       if (!res.ok) throw new Error('Failed to unassign crew from task');
       dispatch({ type: 'CLOSE_TASK_MODAL' });
-      fetchData();
+      weekCacheRef.current.clear();
+      fetchData(true);
     } catch (err) {
       console.error(err);
       alert('Misslyckades att ta bort tilldelning från uppgiften.');
@@ -749,7 +889,8 @@ export default function Dashboard() {
       }
       setIsMeetingModalOpen(false);
       setEditingMeeting(null);
-      fetchData();
+      weekCacheRef.current.clear();
+      fetchData(true);
     } catch (err) {
       console.error(err);
       alert(`Misslyckades att ${meetingData.id ? 'ändra' : 'boka'} mötet: ${err.message}`);
@@ -765,7 +906,8 @@ export default function Dashboard() {
       dispatch({ type: 'CLOSE_MODAL' });
       setIsMeetingModalOpen(false);
       setEditingMeeting(null);
-      fetchData();
+      weekCacheRef.current.clear();
+      fetchData(true);
     } catch (err) {
       console.error(err);
       alert('Misslyckades att ta bort mötet.');
@@ -811,10 +953,11 @@ export default function Dashboard() {
       });
       if (!res.ok) throw new Error('Assignment failed');
       // Refresh to get real IDs
-      fetchData();
+      weekCacheRef.current.clear();
+      fetchData(true);
     } catch (err) {
       console.error('Failed to assign crew:', err);
-      fetchData(); // Revert optimistic update
+      fetchData(true); // Revert optimistic update
     }
   }, [state.selectedFunction, state.crew, fetchData]);
 
@@ -837,10 +980,11 @@ export default function Dashboard() {
         }),
       });
       if (!res.ok) throw new Error('Unassignment failed');
-      fetchData();
+      weekCacheRef.current.clear();
+      fetchData(true);
     } catch (err) {
       console.error('Failed to unassign crew:', err);
-      fetchData(); // Revert
+      fetchData(true); // Revert
     }
   }, [state.selectedFunction, fetchData]);
 
@@ -856,8 +1000,9 @@ export default function Dashboard() {
     }).length;
   })();
 
-  // Compute weekStart as a Date for the Header
-  const weekStartDate = state.weekStart ? new Date(state.weekStart) : new Date();
+  // Compute current week's Monday immediately based on offset
+  const currentWeekInfo = useMemo(() => getWeekDetails(state.weekOffset), [state.weekOffset]);
+  const weekStartDate = currentWeekInfo.monday;
 
   // Filter functions for the week grid based on settings & interval rules
   const gridFunctions = useMemo(() => {
@@ -884,8 +1029,9 @@ export default function Dashboard() {
         }
         weekStart={weekStartDate}
         onWeekChange={handleWeekChange}
-        onResetWeek={() => dispatch({ type: 'RESET_WEEK' })}
+        onResetWeek={handleResetWeek}
         isCurrentWeek={state.weekOffset === 0}
+        isWeekLoading={state.isLoading}
         onCreateMeeting={() => setIsMeetingModalOpen(true)}
         pendingSyncCount={state.pendingRentmanSync?.length || 0}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}
@@ -917,7 +1063,7 @@ export default function Dashboard() {
             )}
           </div>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(true)}
             className="px-3 py-1 bg-amber-500/25 hover:bg-amber-500/40 active:scale-95 text-amber-100 rounded-md text-xs font-medium transition-all"
           >
             Återanslut nu
@@ -928,16 +1074,9 @@ export default function Dashboard() {
       {/* Main content: Office View OR Warehouse View */}
       {currentView === 'office' ? (
         <div className="flex-1 flex gap-3 min-h-0">
-          {/* Week Grid */}
+          {/* Week Grid with immediate skeleton loader */}
           <div className="flex-1 min-w-0">
-            {state.isLoading && state.functions.length === 0 ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center">
-                  <div className="inline-block w-12 h-12 border-4 border-white/20 border-t-blue-500 rounded-full animate-spin mb-4" />
-                  <p className="text-white/50 text-lg">Laddar schema...</p>
-                </div>
-              </div>
-            ) : state.error && state.functions.length === 0 ? (
+            {state.error && state.functions.length === 0 ? (
               <div className="h-full flex items-center justify-center">
                 <div className="text-center glass-panel p-8 max-w-md">
                   <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center text-xl">
@@ -951,7 +1090,7 @@ export default function Dashboard() {
                     </p>
                   )}
                   <button
-                    onClick={fetchData}
+                    onClick={() => fetchData(true)}
                     className="touch-interactive px-6 py-3 bg-blue-600 hover:bg-blue-500 active:scale-95 rounded-xl font-medium transition-all shadow-lg"
                   >
                     Försök nu
@@ -961,7 +1100,8 @@ export default function Dashboard() {
             ) : (
               <WeekGrid
                 functions={gridFunctions}
-                weekStart={state.weekStart}
+                weekStart={weekStartDate}
+                isLoading={state.isLoading}
                 onFunctionClick={handleFunctionClick}
               />
             )}

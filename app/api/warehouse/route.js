@@ -15,9 +15,10 @@ import {
 } from '@/lib/localWarehouse';
 
 // In-memory cache for fast warehouse responsiveness
-let warehouseCache = null;
-let lastWarehouseFetch = 0;
-const CACHE_TTL_MS = 15000; // 15 seconds
+if (!globalThis._warehouseCacheState) {
+  globalThis._warehouseCacheState = { data: null, lastFetch: 0 };
+}
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds
 
 function cleanHtml(str) {
   if (!str) return '';
@@ -37,9 +38,9 @@ export async function GET(request) {
 
     const localData = getWarehouseData();
 
-    if (!forceRefresh && warehouseCache && (nowMs - lastWarehouseFetch < CACHE_TTL_MS)) {
+    if (!forceRefresh && globalThis._warehouseCacheState.data && (nowMs - globalThis._warehouseCacheState.lastFetch < CACHE_TTL_MS)) {
       return NextResponse.json({
-        ...warehouseCache,
+        ...globalThis._warehouseCacheState.data,
         quickNotes: localData.notes || []
       });
     }
@@ -534,15 +535,15 @@ export async function GET(request) {
       }
     };
 
-    warehouseCache = result;
-    lastWarehouseFetch = nowMs;
+    globalThis._warehouseCacheState.data = result;
+    globalThis._warehouseCacheState.lastFetch = nowMs;
 
     return NextResponse.json(result);
 
   } catch (error) {
     console.error('Warehouse API Error:', error);
-    if (warehouseCache) {
-      return NextResponse.json({ ...warehouseCache, error: error.message, fromCache: true });
+    if (globalThis._warehouseCacheState.data) {
+      return NextResponse.json({ ...globalThis._warehouseCacheState.data, error: error.message, fromCache: true });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -554,7 +555,7 @@ export async function POST(request) {
     const { action } = body;
 
     // Invalidate cache on mutations
-    warehouseCache = null;
+    globalThis._warehouseCacheState.data = null;
 
     // 1. REPAIR / TESTING
     if (action === 'toggle_repair_tested') {

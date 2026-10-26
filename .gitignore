@@ -48,3 +48,5 @@ AGENTS.md
 handover_document*
 *.md.backup
 /data/*.json
+/data/.cache/
+.cache/

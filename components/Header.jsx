@@ -9,6 +9,7 @@ export default function Header({
   onWeekChange, 
   onResetWeek,
   isCurrentWeek = true,
+  isWeekLoading = false,
   onCreateMeeting,
   pendingSyncCount = 0,
   onOpenSyncModal,
@@ -113,7 +114,7 @@ export default function Header({
               </button>
               <button
                 onClick={onResetWeek}
-                className={`text-xs font-semibold px-2 py-1 rounded-lg transition-all active:scale-95 flex items-center gap-1 cursor-pointer ${
+                className={`text-xs font-semibold px-2 py-1 rounded-lg transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer ${
                   isCurrentWeek
                     ? 'text-white/90 hover:bg-white/10 hover:text-white'
                     : 'text-blue-300 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 shadow-sm'
@@ -121,7 +122,10 @@ export default function Header({
                 title={isCurrentWeek ? 'Nuvarande vecka' : 'Klicka för att gå till nuvarande vecka'}
               >
                 <span>Vecka {weekNum}</span>
-                {!isCurrentWeek && (
+                {isWeekLoading && (
+                  <span className="w-2.5 h-2.5 border-2 border-white/20 border-t-blue-400 rounded-full animate-spin inline-block" title="Laddar vecka..." />
+                )}
+                {!isCurrentWeek && !isWeekLoading && (
                   <span className="text-[9px] bg-blue-400 text-black px-1 rounded-full font-black ml-0.5">Nu</span>
                 )}
               </button>

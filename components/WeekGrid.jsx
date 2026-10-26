@@ -58,7 +58,40 @@ function organizeDayEvents(dayFunctions) {
   return result.sort((a, b) => a.sortTime - b.sortTime);
 }
 
-export default function WeekGrid({ functions = [], weekStart, onFunctionClick }) {
+function SkeletonCard({ delay = 0 }) {
+  return (
+    <div 
+      className="rounded-xl p-3 bg-white/[0.03] border border-white/10 animate-pulse flex flex-col gap-2.5 shadow-sm"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      {/* Top row: Time pill + Status */}
+      <div className="flex items-center justify-between">
+        <div className="h-4 w-16 bg-white/10 rounded-md" />
+        <div className="h-4 w-20 bg-white/10 rounded-md" />
+      </div>
+
+      {/* Project color bar + name */}
+      <div className="flex items-center gap-2 mt-0.5">
+        <div className="w-2.5 h-2.5 rounded-full bg-blue-400/30" />
+        <div className="h-3.5 w-3/5 bg-white/10 rounded-md" />
+      </div>
+
+      {/* Function name */}
+      <div className="h-5 w-4/5 bg-white/15 rounded-md" />
+
+      {/* Location / details */}
+      <div className="h-3.5 w-1/2 bg-white/5 rounded-md" />
+
+      {/* Crew section skeleton */}
+      <div className="flex items-center gap-1.5 pt-2 border-t border-white/5 mt-1">
+        <div className="h-6 w-20 bg-white/10 rounded-full" />
+        <div className="h-6 w-16 bg-white/5 rounded-full" />
+      </div>
+    </div>
+  );
+}
+
+export default function WeekGrid({ functions = [], weekStart, onFunctionClick, isLoading = false }) {
   const scrollContainerRef = useRef(null);
   const todayRef = useRef(null);
 
@@ -149,7 +182,7 @@ export default function WeekGrid({ functions = [], weekStart, onFunctionClick })
           >
             <div className={`p-4 border-b ${isToday ? 'border-blue-400/30 bg-blue-500/10' : 'border-white/10 bg-white/[0.02]'} flex justify-between items-center`}>
               <h2 className="text-sm font-semibold text-white tracking-wide">{capitalizedDay}</h2>
-              {unassignedCount > 0 && (
+              {!isLoading && unassignedCount > 0 && (
                 <div className="w-6 h-6 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-bold"
                      style={{ animation: 'pulse-glow 2s infinite' }}>
                   {unassignedCount}
@@ -157,24 +190,36 @@ export default function WeekGrid({ functions = [], weekStart, onFunctionClick })
               )}
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-              {organizedItems.map((item, i) => {
-                if (item.type === 'group') {
+              {isLoading ? (
+                <>
+                  <SkeletonCard delay={idx * 60} />
+                  <SkeletonCard delay={idx * 60 + 100} />
+                  {idx % 2 === 0 && <SkeletonCard delay={idx * 60 + 200} />}
+                </>
+              ) : organizedItems.length === 0 ? (
+                <div className="h-32 flex items-center justify-center text-white/20 text-xs font-mono select-none">
+                  Inga bokningar
+                </div>
+              ) : (
+                organizedItems.map((item, i) => {
+                  if (item.type === 'group') {
+                    return (
+                      <GroupedEventCard
+                        key={`group-${item.groupId}-${i}`}
+                        group={item}
+                        onFunctionClick={onFunctionClick}
+                      />
+                    );
+                  }
                   return (
-                    <GroupedEventCard
-                      key={`group-${item.groupId}-${i}`}
-                      group={item}
-                      onFunctionClick={onFunctionClick}
+                    <EventCard
+                      key={item.func.id}
+                      func={item.func}
+                      onClick={() => onFunctionClick(item.func)}
                     />
                   );
-                }
-                return (
-                  <EventCard
-                    key={item.func.id}
-                    func={item.func}
-                    onClick={() => onFunctionClick(item.func)}
-                  />
-                );
-              })}
+                })
+              )}
             </div>
           </div>
         );

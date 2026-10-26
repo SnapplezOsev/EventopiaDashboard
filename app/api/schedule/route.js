@@ -2,116 +2,145 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { fetchRentman, extractId } from '@/lib/rentman';
 import { getLocalAssignments, removeLocalAssignment } from '@/lib/localAssignments';
+import { parseWeekString } from '@/lib/weekUtils';
+import { getCachedSchedule, setCachedSchedule } from '@/lib/scheduleCache';
 
-function getWeekRange(weekStr) {
-  let date;
-  if (weekStr) {
-    const [year, week] = weekStr.split('-W');
-    const d = new Date(year, 0, 1 + (week - 1) * 7);
-    const dayOfWeek = d.getDay();
-    const ISOweekStart = d;
-    if (dayOfWeek <= 4) {
-      ISOweekStart.setDate(d.getDate() - d.getDay() + 1);
-    } else {
-      ISOweekStart.setDate(d.getDate() + 8 - d.getDay());
-    }
-    date = ISOweekStart;
-  } else {
-    date = new Date();
-    const day = date.getDay() || 7;
-    if (day !== 1) {
-      date.setHours(-24 * (day - 1));
-    }
+// Module-level global cache to make repeated queries and prefetching near-instantaneous (under 5ms)
+if (!globalThis._scheduleCache) {
+  globalThis._scheduleCache = new Map();
+}
+const scheduleCache = globalThis._scheduleCache;
+const SCHEDULE_CACHE_TTL = 60 * 1000; // 60 seconds
+
+// Cache for reference data (crew, vehicles, statuses, etc.) that rarely changes
+if (!globalThis._refDataState) {
+  globalThis._refDataState = { data: null, lastFetch: 0 };
+}
+const REF_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+async function getReferenceData(safeFetch, force = false) {
+  const now = Date.now();
+  if (!force && globalThis._refDataState.data && (now - globalThis._refDataState.lastFetch < REF_CACHE_TTL)) {
+    return globalThis._refDataState.data;
   }
+  const [
+    allProjects,
+    allSubprojects,
+    allStatuses,
+    allProjectStatuses,
+    allVehicles,
+    allCrew,
+    allContacts,
+    allTaskStatuses,
+    allProjFunctionGroups
+  ] = await Promise.all([
+    safeFetch('/projects?limit=1000&sort=-id'),
+    safeFetch('/subprojects?limit=1000&sort=-id'),
+    safeFetch('/statuses?limit=100'),
+    safeFetch('/projectstatuses?limit=100'),
+    safeFetch('/vehicles?limit=500'),
+    safeFetch('/crew?limit=500'),
+    safeFetch('/contacts?limit=1000'),
+    safeFetch('/taskstatuses?limit=100'),
+    safeFetch('/projectfunctiongroups?limit=1000&sort=-id')
+  ]);
 
-  date.setHours(0, 0, 0, 0);
-  const weekStart = new Date(date);
-  
-  const weekEnd = new Date(date);
-  weekEnd.setDate(weekEnd.getDate() + 6);
-  weekEnd.setHours(23, 59, 59, 999);
-
-  return { weekStart, weekEnd };
+  globalThis._refDataState.data = {
+    allProjects,
+    allSubprojects,
+    allStatuses,
+    allProjectStatuses,
+    allVehicles,
+    allCrew,
+    allContacts,
+    allTaskStatuses,
+    allProjFunctionGroups
+  };
+  globalThis._refDataState.lastFetch = now;
+  return globalThis._refDataState.data;
 }
 
-// Module-level in-memory cache to prevent blank screens during transient Rentman API blips
-const scheduleCache = new Map();
+if (!globalThis._inFlightSchedules) {
+  globalThis._inFlightSchedules = new Map();
+}
 
 export async function GET(request) {
-  try {
-    const { searchParams } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
     const weekParam = searchParams.get('week');
+    const forceRefresh = searchParams.get('refresh') === 'true';
     
-    const { weekStart, weekEnd } = getWeekRange(weekParam);
-    const formatDate = (d) => {
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-    const weekStartStr = formatDate(weekStart);
-    const weekEndStr = formatDate(weekEnd);
+    const { weekStart, weekEnd, weekStartStr, weekEndStr, weekStr } = parseWeekString(weekParam);
+    const cacheKey = weekStr;
 
-    const formatHexColor = (col, fallback = '#14B4EC') => {
-      if (!col) return fallback;
-      return col.startsWith('#') ? col : `#${col}`;
-    };
+    // Check fast cache first (persists across workers & reloads)
+    const cached = !forceRefresh ? getCachedSchedule(weekStr) : null;
+    if (cached && cached.functions && cached.functions.length > 0) {
+      return NextResponse.json({ ...cached, fromCache: true });
+    }
 
-    // Safe fetch with fallback and retry so temporary network/Rentman blips don't break the dashboard
-    const safeFetch = async (path, retries = 1) => {
-      try {
-        const res = await fetchRentman(path);
-        return res?.data || [];
-      } catch (err) {
-        if (retries > 0) {
-          await new Promise(r => setTimeout(r, 600));
-          return safeFetch(path, retries - 1);
+    // Deduplicate in-flight schedule fetches so duplicate calls don't blast Rentman
+    if (!forceRefresh && globalThis._inFlightSchedules.has(weekStr)) {
+      const inFlight = await globalThis._inFlightSchedules.get(weekStr);
+      return NextResponse.json(inFlight);
+    }
+
+    const executeFetch = async () => {
+      const formatHexColor = (col, fallback = '#14B4EC') => {
+        if (!col) return fallback;
+        return col.startsWith('#') ? col : `#${col}`;
+      };
+
+      // Safe fetch with fallback and retry so temporary network/Rentman blips don't break the dashboard
+      const safeFetch = async (path, retries = 1) => {
+        try {
+          const res = await fetchRentman(path);
+          return res?.data || [];
+        } catch (err) {
+          if (retries > 0) {
+            await new Promise(r => setTimeout(r, 400));
+            return safeFetch(path, retries - 1);
+          }
+          console.warn(`Safe fetch warning for ${path}:`, err.message);
+          return [];
         }
-        console.warn(`Safe fetch warning for ${path}:`, err.message);
-        return [];
-      }
-    };
+      };
 
     // Parallel fetch with large limit to avoid pagination truncation
     const [
-      allProjects,
-      allSubprojects,
+      refData,
       planFilteredPf,
       usageFilteredPf,
       recentPf,
       allProjCrew,
-      allStatuses,
-      allProjectStatuses,
       allProjVehicles,
-      allVehicles,
       allAppointments,
       allAppCrew,
-      allCrew,
-      allContacts,
       allTasks,
-      allTaskStatuses,
-      allTaskAssignments,
-      allProjFunctionGroups
+      allTaskAssignments
     ] = await Promise.all([
-      safeFetch('/projects?limit=1000&sort=-id'),
-      safeFetch('/subprojects?limit=1000&sort=-id'),
+      getReferenceData(safeFetch, forceRefresh),
       safeFetch(`/projectfunctions?planperiod_start[gte]=${weekStartStr}&planperiod_start[lte]=${weekEndStr}T23:59:59&limit=1000`),
       safeFetch(`/projectfunctions?usageperiod_start[gte]=${weekStartStr}&usageperiod_start[lte]=${weekEndStr}T23:59:59&limit=1000`),
       safeFetch('/projectfunctions?limit=1000&sort=-id'),
       safeFetch('/projectcrew?limit=1000&sort=-id'),
-      safeFetch('/statuses?limit=100'),
-      safeFetch('/projectstatuses?limit=100'),
       safeFetch('/projectvehicles?limit=1000&sort=-id'),
-      safeFetch('/vehicles?limit=500'),
       safeFetch('/appointments?limit=500&sort=-id'),
       safeFetch('/appointmentcrew?limit=500&sort=-id'),
-      safeFetch('/crew?limit=500'),
-      safeFetch('/contacts?limit=1000'),
       safeFetch('/tasks?limit=500&sort=-id'),
-      safeFetch('/taskstatuses?limit=100'),
-      safeFetch('/taskassignments?limit=1000&sort=-id'),
-      safeFetch('/projectfunctiongroups?limit=1000&sort=-id')
+      safeFetch('/taskassignments?limit=1000&sort=-id')
     ]);
+
+    const {
+      allProjects,
+      allSubprojects,
+      allStatuses,
+      allProjectStatuses,
+      allVehicles,
+      allCrew,
+      allContacts,
+      allTaskStatuses,
+      allProjFunctionGroups
+    } = refData;
 
     // Merge date-filtered and recent project functions so functions created earlier (lower ID) are never dropped
     const projFunctionsMap = new Map();
@@ -313,7 +342,7 @@ export async function GET(request) {
           // Do not treat as specific timeframe interval (so it's not shown in the grid overview)
           intervalStart = null;
           intervalEnd = null;
-          planStart = projPlanStart || weekStart.toISOString();
+          planStart = projPlanStart || (weekStart?.toISOString ? weekStart.toISOString() : (weekStartStr || new Date().toISOString()));
           planEnd = projPlanEnd || planStart;
         }
       }
@@ -582,14 +611,12 @@ export async function GET(request) {
       };
     });
 
-    const cacheKey = weekParam || 'current';
-
     // Fallback to cached schedule if fetch returned 0 functions (e.g. transient Rentman lock/blip)
-    if (functions.length === 0 && scheduleCache.has(cacheKey)) {
-      const cached = scheduleCache.get(cacheKey);
-      if (cached && cached.functions && cached.functions.length > 0) {
-        console.warn(`Rentman returned 0 functions — falling back to cached schedule (${cached.functions.length} functions).`);
-        return NextResponse.json({ ...cached, fromCache: true });
+    if (functions.length === 0) {
+      const diskFallback = getCachedSchedule(weekStr, 24 * 60 * 60 * 1000);
+      if (diskFallback && diskFallback.functions && diskFallback.functions.length > 0) {
+        console.warn(`Rentman returned 0 functions — falling back to disk cache (${diskFallback.functions.length} functions).`);
+        return { ...diskFallback, fromCache: true, isStale: true };
       }
     }
 
@@ -604,13 +631,30 @@ export async function GET(request) {
     };
 
     if (functions.length > 0) {
-      scheduleCache.set(cacheKey, result);
+      scheduleCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      setCachedSchedule(weekStr, result);
     }
 
-    return NextResponse.json(result);
+    return result;
+  };
 
+  const fetchPromise = executeFetch();
+  if (!forceRefresh) {
+    globalThis._inFlightSchedules.set(weekStr, fetchPromise);
+  }
+
+  try {
+    const data = await fetchPromise;
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Schedule API Error:', error);
+    const diskFallback = getCachedSchedule(weekStr, 24 * 60 * 60 * 1000);
+    if (diskFallback && diskFallback.functions && diskFallback.functions.length > 0) {
+      console.warn(`Serving disk cache fallback due to error for ${weekStr}`);
+      return NextResponse.json({ ...diskFallback, fromCache: true, isStale: true });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    globalThis._inFlightSchedules.delete(weekStr);
   }
 }
