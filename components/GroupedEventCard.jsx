@@ -80,10 +80,10 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
             : 'bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20';
 
           const timeBadgeClass = isOnLocationOrDone
-            ? 'bg-white/5 text-white/50 text-[11px]'
+            ? 'bg-white/5 text-white/50 text-sm'
             : func.isUnscheduled
-            ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30 text-[10px]'
-            : 'bg-white/10 text-white text-[11px]';
+            ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30 text-xs'
+            : 'bg-white/10 text-white text-sm';
 
           return (
             <div
@@ -96,7 +96,7 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
             >
               {/* Row 1: Time and Function Name */}
               <div className="flex justify-between items-center w-full">
-                <div className={`${timeBadgeClass} px-1.5 py-0.2 rounded font-bold tracking-wide`}>
+                <div className={`${timeBadgeClass} px-2 py-0.5 rounded-md font-bold tracking-wide flex items-center gap-1`}>
                   {timeString}
                 </div>
                 <div className={`font-bold ${isOnLocationOrDone ? 'text-white/60' : 'text-white'} text-xs truncate max-w-[150px] text-right`} title={func.name}>
