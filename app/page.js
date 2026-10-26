@@ -10,6 +10,7 @@ import SettingsModal from '@/components/SettingsModal';
 import MeetingModal from '@/components/MeetingModal';
 import Screensaver from '@/components/Screensaver';
 import RentmanSyncModal from '@/components/RentmanSyncModal';
+import WarehouseView from '@/components/WarehouseView';
 
 // --- State Reducer ---
 const initialState = {
@@ -179,11 +180,17 @@ export default function Dashboard() {
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [retryCountdown, setRetryCountdown] = useState(null);
+  const [currentView, setCurrentView] = useState('office'); // 'office' | 'warehouse'
+  const [warehouseData, setWarehouseData] = useState(null);
+  const [isWarehouseLoading, setIsWarehouseLoading] = useState(false);
+  const [warehouseError, setWarehouseError] = useState(null);
+
   const [settings, setSettings] = useState({
     startTime: '07:00',
     endTime: '19:00',
     wakeDuration: 2,
-    showUnscheduledInGrid: false
+    showUnscheduledInGrid: false,
+    defaultView: 'office'
   });
   const screensaverTimerRef = useRef(null);
   const wakeTimeoutRef = useRef(null);
@@ -191,6 +198,202 @@ export default function Dashboard() {
 
   const isAnyModalOpenRef = useRef(false);
   isAnyModalOpenRef.current = isSettingsModalOpen || isMeetingModalOpen || isSyncModalOpen || state.isTaskModalOpen || Boolean(state.selectedFunction);
+
+  // Fetch Warehouse Data
+  const fetchWarehouseData = useCallback(async (forceRefresh = false) => {
+    setIsWarehouseLoading(true);
+    try {
+      const res = await fetch(`/api/warehouse${forceRefresh ? '?refresh=true' : ''}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setWarehouseData(data);
+      setWarehouseError(null);
+    } catch (err) {
+      console.error('Failed to fetch warehouse data:', err);
+      setWarehouseError(err.message);
+    } finally {
+      setIsWarehouseLoading(false);
+    }
+  }, []);
+
+  // Periodic warehouse refresh
+  useEffect(() => {
+    fetchWarehouseData();
+    const interval = setInterval(() => {
+      fetchWarehouseData();
+    }, 45 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchWarehouseData]);
+
+  // Warehouse Actions
+  const handleTogglePack = useCallback(async (subprojectId, isPacked) => {
+    setWarehouseData(prev => {
+      if (!prev?.toPack) return prev;
+      return {
+        ...prev,
+        toPack: prev.toPack.map(p => p.id === subprojectId ? { ...p, isPacked } : p)
+      };
+    });
+    try {
+      await fetch('/api/warehouse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle_pack', subprojectId, isPacked })
+      });
+      fetchWarehouseData(true);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [fetchWarehouseData]);
+
+  const handleToggleReturn = useCallback(async (subprojectId, isReturned) => {
+    setWarehouseData(prev => {
+      if (!prev?.returns) return prev;
+      return {
+        ...prev,
+        returns: prev.returns.map(r => r.id === subprojectId ? { ...r, isUnchecked: false, isOverdue: false } : r)
+      };
+    });
+    try {
+      await fetch('/api/warehouse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle_return', subprojectId, isReturned })
+      });
+      fetchWarehouseData(true);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [fetchWarehouseData]);
+
+  const handleToggleRepairTested = useCallback(async (repairId, isTested) => {
+    setWarehouseData(prev => {
+      if (!prev?.testingAndRepairs) return prev;
+      return {
+        ...prev,
+        testingAndRepairs: prev.testingAndRepairs.map(r => r.id === repairId ? { ...r, isTested } : r)
+      };
+    });
+    try {
+      await fetch('/api/warehouse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle_repair_tested', repairId, isTested })
+      });
+      fetchWarehouseData(true);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [fetchWarehouseData]);
+
+
+  const handleReportLostEquipment = useCallback(async (lostData) => {
+    try {
+      await fetch('/api/warehouse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'report_lost_equipment', ...lostData })
+      });
+      fetchWarehouseData(true);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [fetchWarehouseData]);
+
+  const handleResolveLostEquipment = useCallback(async (id, status) => {
+    try {
+      await fetch('/api/warehouse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resolve_lost_equipment', id, status })
+      });
+      fetchWarehouseData(true);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [fetchWarehouseData]);
+
+  const handleDeleteLostEquipment = useCallback(async (id) => {
+    try {
+      await fetch('/api/warehouse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete_lost_equipment', id })
+      });
+      fetchWarehouseData(true);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [fetchWarehouseData]);
+
+  const handleAddQuickNote = useCallback(async (text) => {
+    try {
+      await fetch('/api/warehouse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add_note', text, author: 'Lager' })
+      });
+      fetchWarehouseData(true);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [fetchWarehouseData]);
+
+  const handleToggleQuickNote = useCallback(async (noteId) => {
+    setWarehouseData(prev => {
+      if (!prev?.quickNotes) return prev;
+      return {
+        ...prev,
+        quickNotes: prev.quickNotes.map(n => n.id === noteId ? { ...n, done: !n.done } : n)
+      };
+    });
+    try {
+      await fetch('/api/warehouse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle_note', noteId })
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const handleDeleteQuickNote = useCallback(async (noteId) => {
+    setWarehouseData(prev => {
+      if (!prev?.quickNotes) return prev;
+      return {
+        ...prev,
+        quickNotes: prev.quickNotes.filter(n => n.id !== noteId)
+      };
+    });
+    try {
+      await fetch('/api/warehouse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete_note', noteId })
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  // Keyboard shortcut: Press 1 for Kontor, 2 for Lager
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+        return;
+      }
+      if (isAnyModalOpenRef.current) return;
+
+      if (e.key === '1') {
+        setCurrentView('office');
+      } else if (e.key === '2') {
+        setCurrentView('warehouse');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Idle reset function: called on ANY user interaction when awake
   const resetIdleTimer = useCallback(() => {
@@ -249,20 +452,29 @@ export default function Dashboard() {
   useEffect(() => {
     const saved = localStorage.getItem('dashboard_settings');
     if (saved) {
-      try { setSettings(JSON.parse(saved)); } catch(e) {}
+      try { 
+        const parsed = JSON.parse(saved);
+        setSettings(parsed);
+        if (parsed.defaultView && (parsed.defaultView === 'office' || parsed.defaultView === 'warehouse')) {
+          setCurrentView(parsed.defaultView);
+        }
+      } catch(e) {}
     }
   }, []);
 
   const handleSaveSettings = useCallback((newSettings) => {
     setSettings(newSettings);
     localStorage.setItem('dashboard_settings', JSON.stringify(newSettings));
+    if (newSettings.defaultView && newSettings.defaultView !== currentView) {
+      setCurrentView(newSettings.defaultView);
+    }
     setIsSettingsModalOpen(false);
     if (wakeTimeoutRef.current) {
       clearTimeout(wakeTimeoutRef.current);
       wakeTimeoutRef.current = null;
     }
     resetIdleTimer();
-  }, [resetIdleTimer]);
+  }, [resetIdleTimer, currentView]);
 
   const handleToggleUnscheduledInGrid = useCallback(() => {
     setSettings(prev => {
@@ -408,11 +620,12 @@ export default function Dashboard() {
       }
       dispatch({ type: 'CLOSE_TASK_MODAL' });
       fetchData(); // Refresh tasks
+      fetchWarehouseData(true);
     } catch (err) {
       console.error(err);
       alert(`Misslyckades att spara uppgiften: ${err.message}`);
     }
-  }, [fetchData]);
+  }, [fetchData, fetchWarehouseData]);
 
   const handleToggleTaskComplete = useCallback(async (task) => {
     try {
@@ -431,11 +644,12 @@ export default function Dashboard() {
         throw new Error(errJson.error || 'Failed to toggle task completion');
       }
       fetchData();
+      fetchWarehouseData(true);
     } catch (err) {
       console.error(err);
       alert(`Misslyckades att uppdatera uppgiftens status: ${err.message}`);
     }
-  }, [fetchData]);
+  }, [fetchData, fetchWarehouseData]);
 
   const handleTaskAssign = useCallback(async (taskId, crewId) => {
     try {
@@ -610,6 +824,13 @@ export default function Dashboard() {
     <div className="h-screen w-screen overflow-hidden p-4 flex flex-col gap-3">
       {/* Header */}
       <Header
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        warehouseAlertCount={
+          (warehouseData?.stats?.toPackTodayCount || 0) +
+          (warehouseData?.stats?.returnsOverdueCount || 0) +
+          (warehouseData?.stats?.uncheckedCount || 0)
+        }
         weekStart={weekStartDate}
         onWeekChange={handleWeekChange}
         onCreateMeeting={() => setIsMeetingModalOpen(true)}
@@ -618,108 +839,140 @@ export default function Dashboard() {
         showUnscheduledInGrid={Boolean(settings?.showUnscheduledInGrid)}
         onToggleUnscheduledInGrid={handleToggleUnscheduledInGrid}
         unscheduledCount={state.unscheduledFunctions?.length || 0}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onEnterSleep={() => {
+          forceSleepRef.current = true;
+          setScreensaverActive(true);
+        }}
       />
 
       {/* Reconnection Alert Banner if error occurs while having cached data */}
       {state.error && state.functions.length > 0 && (
-        <div className="bg-amber-500/15 border border-amber-500/30 text-amber-200 px-4 py-2.5 rounded-2xl flex items-center justify-between text-sm backdrop-blur-md shadow-lg shrink-0">
+        <div className="bg-amber-500/15 border border-amber-500/30 text-amber-200 px-4 py-2.5 rounded-xl flex items-center justify-between text-sm backdrop-blur-md shadow-lg shrink-0">
           <div className="flex items-center gap-3">
-            <span className="relative flex h-3 w-3">
+            <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
             </span>
-            <span className="font-medium">
+            <span className="font-medium text-xs">
               Nätverksanslutningen bröts — behåller sparad vy.
             </span>
             {retryCountdown !== null && (
-              <span className="text-amber-300/80 text-xs font-mono bg-black/20 px-2 py-0.5 rounded-md">
+              <span className="text-amber-300/80 text-xs font-mono bg-black/20 px-2 py-0.5 rounded">
                 Återansluter om {retryCountdown}s...
               </span>
             )}
           </div>
           <button
             onClick={fetchData}
-            className="px-4 py-1.5 bg-amber-500/25 hover:bg-amber-500/40 active:scale-95 text-amber-100 rounded-xl text-xs font-bold transition-all shadow-sm"
+            className="px-3 py-1 bg-amber-500/25 hover:bg-amber-500/40 active:scale-95 text-amber-100 rounded-md text-xs font-medium transition-all"
           >
             Återanslut nu
           </button>
         </div>
       )}
 
-      {/* Main content: Grid + Sidebar */}
-      <div className="flex-1 flex gap-3 min-h-0">
-        {/* Week Grid */}
-        <div className="flex-1 min-w-0">
-          {state.isLoading && state.functions.length === 0 ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center">
-                <div className="inline-block w-12 h-12 border-4 border-white/20 border-t-blue-500 rounded-full animate-spin mb-4" />
-                <p className="text-white/50 text-lg">Laddar schema...</p>
-              </div>
-            </div>
-          ) : state.error && state.functions.length === 0 ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center glass-panel p-8 max-w-md">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center text-xl">
-                  ⚠️
+      {/* Main content: Office View OR Warehouse View */}
+      {currentView === 'office' ? (
+        <div className="flex-1 flex gap-3 min-h-0">
+          {/* Week Grid */}
+          <div className="flex-1 min-w-0">
+            {state.isLoading && state.functions.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <div className="inline-block w-12 h-12 border-4 border-white/20 border-t-blue-500 rounded-full animate-spin mb-4" />
+                  <p className="text-white/50 text-lg">Laddar schema...</p>
                 </div>
-                <p className="text-red-400 text-xl font-semibold mb-2">Kunde inte ansluta till Rentman</p>
-                <p className="text-white/50 text-sm mb-4">{state.error}</p>
-                {retryCountdown !== null && (
-                  <p className="text-blue-400 text-xs font-mono mb-4 animate-pulse">
-                    Återansluter automatiskt om {retryCountdown} sekunder...
-                  </p>
-                )}
-                <button
-                  onClick={fetchData}
-                  className="touch-interactive px-6 py-3 bg-blue-600 hover:bg-blue-500 active:scale-95 rounded-xl font-medium transition-all shadow-lg"
-                >
-                  Försök nu
-                </button>
               </div>
-            </div>
-          ) : (
-            <WeekGrid
-              functions={gridFunctions}
-              weekStart={state.weekStart}
-              onFunctionClick={handleFunctionClick}
-            />
-          )}
-        </div>
+            ) : state.error && state.functions.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center glass-panel p-8 max-w-md">
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center text-xl">
+                    ⚠️
+                  </div>
+                  <p className="text-red-400 text-xl font-semibold mb-2">Kunde inte ansluta till Rentman</p>
+                  <p className="text-white/50 text-sm mb-4">{state.error}</p>
+                  {retryCountdown !== null && (
+                    <p className="text-blue-400 text-xs font-mono mb-4 animate-pulse">
+                      Återansluter automatiskt om {retryCountdown} sekunder...
+                    </p>
+                  )}
+                  <button
+                    onClick={fetchData}
+                    className="touch-interactive px-6 py-3 bg-blue-600 hover:bg-blue-500 active:scale-95 rounded-xl font-medium transition-all shadow-lg"
+                  >
+                    Försök nu
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <WeekGrid
+                functions={gridFunctions}
+                weekStart={state.weekStart}
+                onFunctionClick={handleFunctionClick}
+              />
+            )}
+          </div>
 
-        {/* Task Sidebar & Action Buttons */}
-        <div className="w-[450px] flex-shrink-0 flex flex-col gap-3">
-          <div className="flex-1 min-h-0">
-            <TaskSidebar 
-              tasks={state.tasks} 
-              unscheduledFunctions={state.unscheduledFunctions || []}
-              onTaskClick={handleTaskClick} 
-              onCreateTask={handleCreateTask} 
-              onFunctionClick={handleFunctionClick}
-              onToggleTaskComplete={handleToggleTaskComplete}
-            />
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setIsSettingsModalOpen(true)}
-              className="flex-1 bg-white/5 hover:bg-white/10 active:scale-95 transition-all p-4 rounded-2xl border border-white/10 flex items-center justify-center gap-2 text-white font-medium shadow-sm"
-            >
-              <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-              Inställningar
-            </button>
-            <button
-              onClick={() => {
-                forceSleepRef.current = true;
-                setScreensaverActive(true);
-              }}
-              className="flex-1 bg-white/5 hover:bg-white/10 active:scale-95 transition-all p-4 rounded-2xl border border-white/10 flex items-center justify-center gap-2 text-white font-medium shadow-sm"
-            >
-              <svg className="w-5 h-5 text-indigo-300" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
-              Sovläge
-            </button>
+          {/* Task Sidebar & Action Buttons */}
+          <div className="w-[450px] flex-shrink-0 flex flex-col gap-3">
+            <div className="flex-1 min-h-0">
+              <TaskSidebar 
+                tasks={state.tasks} 
+                unscheduledFunctions={state.unscheduledFunctions || []}
+                onTaskClick={handleTaskClick} 
+                onCreateTask={handleCreateTask} 
+                onFunctionClick={handleFunctionClick}
+                onToggleTaskComplete={handleToggleTaskComplete}
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsSettingsModalOpen(true)}
+                className="flex-1 bg-white/5 hover:bg-white/10 active:scale-95 transition-all p-4 rounded-2xl border border-white/10 flex items-center justify-center gap-2 text-white font-medium shadow-sm"
+              >
+                <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                Inställningar
+              </button>
+              <button
+                onClick={() => {
+                  forceSleepRef.current = true;
+                  setScreensaverActive(true);
+                }}
+                className="flex-1 bg-white/5 hover:bg-white/10 active:scale-95 transition-all p-4 rounded-2xl border border-white/10 flex items-center justify-center gap-2 text-white font-medium shadow-sm"
+              >
+                <svg className="w-5 h-5 text-indigo-300" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                Sovläge
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <WarehouseView
+            warehouseData={warehouseData}
+            isLoading={isWarehouseLoading}
+            error={warehouseError}
+            onRefresh={() => fetchWarehouseData(true)}
+            onTogglePack={handleTogglePack}
+            onToggleReturn={handleToggleReturn}
+            onToggleRepairTested={handleToggleRepairTested}
+            onReportLostEquipment={handleReportLostEquipment}
+            onResolveLostEquipment={handleResolveLostEquipment}
+            onDeleteLostEquipment={handleDeleteLostEquipment}
+            onOpenTaskModal={handleTaskClick}
+            onToggleTaskComplete={handleToggleTaskComplete}
+            onAddQuickNote={handleAddQuickNote}
+            onToggleQuickNote={handleToggleQuickNote}
+            onDeleteQuickNote={handleDeleteQuickNote}
+            onOpenSettings={() => setIsSettingsModalOpen(true)}
+            onEnterSleep={() => {
+              forceSleepRef.current = true;
+              setScreensaverActive(true);
+            }}
+          />
+        </div>
+      )}
 
       {/* Assignment Modal */}
       {state.selectedFunction && (
