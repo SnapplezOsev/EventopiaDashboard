@@ -19,22 +19,32 @@ export default function EventCard({ func, onClick }) {
     ? 'Skift' 
     : (func.statusName || 'Okänd');
   const projStatusClass = getStatusBadgeStyle(displayStatus);
+  const sLower = (func.statusName || '').toLowerCase();
+  const isOnLocationOrDone = sLower.includes('plats') || sLower.includes('location') || sLower.includes('retur') || sLower.includes('return');
 
-  const cardBorderClass = func.isUnscheduled
-    ? 'bg-amber-500/[0.07] hover:bg-amber-500/[0.12] border-l-[3px] border-l-amber-500 border border-amber-500/30 border-dashed'
-    : `bg-white/[0.06] hover:bg-white/[0.1] border-l-[3px] ${isFullyAssigned ? 'border-l-green-500' : 'border-l-red-500'}`;
+  const cardStyleClass = isOnLocationOrDone
+    ? 'opacity-50 hover:opacity-100 grayscale-[0.5] hover:grayscale-0 bg-white/[0.02] border border-white/5 hover:border-white/20'
+    : func.isUnscheduled
+    ? 'bg-amber-500/[0.07] hover:bg-amber-500/[0.12] border border-amber-500/30 border-dashed'
+    : 'bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 hover:border-white/20';
+
+  const timeBadgeClass = isOnLocationOrDone
+    ? 'bg-white/5 text-white/50 text-sm'
+    : func.isUnscheduled
+    ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30 text-xs'
+    : 'bg-white/10 text-white text-sm';
 
   return (
     <div 
       onClick={onClick}
-      className={`relative active:scale-[0.97] transition-all rounded-xl p-2 cursor-pointer group shadow-sm flex flex-col gap-1.5 ${cardBorderClass}`}
+      className={`relative active:scale-[0.97] transition-all rounded-xl p-2 cursor-pointer group shadow-sm flex flex-col gap-1.5 ${cardStyleClass}`}
     >
       {/* Row 1: Time and Function */}
       <div className="flex justify-between items-center w-full">
-        <div className={`${func.isUnscheduled ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30 text-xs' : 'bg-white/10 text-white text-sm'} px-2 py-0.5 rounded-md font-bold tracking-wide flex items-center gap-1`}>
+        <div className={`${timeBadgeClass} px-2 py-0.5 rounded-md font-bold tracking-wide flex items-center gap-1`}>
           {timeString}
         </div>
-        <div className="font-bold text-white text-sm truncate max-w-[150px] text-right" title={func.name}>
+        <div className={`font-bold ${isOnLocationOrDone ? 'text-white/60' : 'text-white'} text-sm truncate max-w-[150px] text-right`} title={func.name}>
           {func.name}
         </div>
       </div>

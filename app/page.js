@@ -57,6 +57,8 @@ function dashboardReducer(state, action) {
       return { ...state, selectedTask: null, isTaskModalOpen: false };
     case 'CHANGE_WEEK':
       return { ...state, weekOffset: state.weekOffset + action.payload };
+    case 'RESET_WEEK':
+      return { ...state, weekOffset: 0 };
     case 'OPTIMISTIC_ASSIGN': {
       const { functionId, crewId, crewName, crewCategory, projectCrewId } = action.payload;
       return {
@@ -449,6 +451,55 @@ export default function Dashboard() {
     };
   }, [screensaverActive, resetIdleTimer]);
 
+  // Inactivity timer to reset week navigation to current week after 2 minutes of idle
+  const weekIdleTimerRef = useRef(null);
+
+  const resetWeekIdleTimer = useCallback(() => {
+    if (weekIdleTimerRef.current) {
+      clearTimeout(weekIdleTimerRef.current);
+      weekIdleTimerRef.current = null;
+    }
+
+    // Only set timer if we are currently not on the current week
+    if (state.weekOffset !== 0) {
+      weekIdleTimerRef.current = setTimeout(() => {
+        weekIdleTimerRef.current = null;
+        // Don't auto-reset week if a modal is open
+        if (isAnyModalOpenRef.current) {
+          resetWeekIdleTimer();
+          return;
+        }
+        dispatch({ type: 'RESET_WEEK' });
+      }, 2 * 60 * 1000); // 2 minutes
+    }
+  }, [state.weekOffset]);
+
+  useEffect(() => {
+    resetWeekIdleTimer();
+
+    const onUserActivity = () => {
+      resetWeekIdleTimer();
+    };
+
+    window.addEventListener('pointerdown', onUserActivity, { passive: true });
+    window.addEventListener('mousemove', onUserActivity, { passive: true });
+    window.addEventListener('touchstart', onUserActivity, { passive: true });
+    window.addEventListener('keydown', onUserActivity, { passive: true });
+    window.addEventListener('scroll', onUserActivity, { passive: true });
+
+    return () => {
+      window.removeEventListener('pointerdown', onUserActivity);
+      window.removeEventListener('mousemove', onUserActivity);
+      window.removeEventListener('touchstart', onUserActivity);
+      window.removeEventListener('keydown', onUserActivity);
+      window.removeEventListener('scroll', onUserActivity);
+      if (weekIdleTimerRef.current) {
+        clearTimeout(weekIdleTimerRef.current);
+        weekIdleTimerRef.current = null;
+      }
+    };
+  }, [resetWeekIdleTimer]);
+
   useEffect(() => {
     const saved = localStorage.getItem('dashboard_settings');
     if (saved) {
@@ -833,6 +884,8 @@ export default function Dashboard() {
         }
         weekStart={weekStartDate}
         onWeekChange={handleWeekChange}
+        onResetWeek={() => dispatch({ type: 'RESET_WEEK' })}
+        isCurrentWeek={state.weekOffset === 0}
         onCreateMeeting={() => setIsMeetingModalOpen(true)}
         pendingSyncCount={state.pendingRentmanSync?.length || 0}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}

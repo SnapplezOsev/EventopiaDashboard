@@ -76,7 +76,9 @@ export async function GET(request) {
     const [
       allProjects,
       allSubprojects,
-      allProjFunctions,
+      planFilteredPf,
+      usageFilteredPf,
+      recentPf,
       allProjCrew,
       allStatuses,
       allProjectStatuses,
@@ -93,6 +95,8 @@ export async function GET(request) {
     ] = await Promise.all([
       safeFetch('/projects?limit=1000&sort=-id'),
       safeFetch('/subprojects?limit=1000&sort=-id'),
+      safeFetch(`/projectfunctions?planperiod_start[gte]=${weekStartStr}&planperiod_start[lte]=${weekEndStr}T23:59:59&limit=1000`),
+      safeFetch(`/projectfunctions?usageperiod_start[gte]=${weekStartStr}&usageperiod_start[lte]=${weekEndStr}T23:59:59&limit=1000`),
       safeFetch('/projectfunctions?limit=1000&sort=-id'),
       safeFetch('/projectcrew?limit=1000&sort=-id'),
       safeFetch('/statuses?limit=100'),
@@ -109,12 +113,57 @@ export async function GET(request) {
       safeFetch('/projectfunctiongroups?limit=1000&sort=-id')
     ]);
 
+    // Merge date-filtered and recent project functions so functions created earlier (lower ID) are never dropped
+    const projFunctionsMap = new Map();
+    for (const f of (planFilteredPf || [])) projFunctionsMap.set(f.id, f);
+    for (const f of (usageFilteredPf || [])) projFunctionsMap.set(f.id, f);
+    for (const f of (recentPf || [])) {
+      if (!projFunctionsMap.has(f.id)) projFunctionsMap.set(f.id, f);
+    }
+    const allProjFunctions = Array.from(projFunctionsMap.values());
+
     // Lookup maps
     const projectMap = {};
     for (const p of allProjects) projectMap[p.id] = p;
 
     const subprojectMap = {};
     for (const sp of allSubprojects) subprojectMap[sp.id] = sp;
+
+    // Resolve any subprojects referenced by active functions that fell outside the top 1000
+    const missingSubprojectIds = new Set();
+    for (const fn of allProjFunctions) {
+      const spId = extractId(fn.subproject);
+      if (spId && !subprojectMap[spId]) missingSubprojectIds.add(spId);
+    }
+    if (missingSubprojectIds.size > 0) {
+      const fetchedSp = await Promise.all(
+        Array.from(missingSubprojectIds).map(id => safeFetch(`/subprojects?id=${id}`))
+      );
+      for (const spArr of fetchedSp) {
+        for (const sp of spArr) {
+          subprojectMap[sp.id] = sp;
+        }
+      }
+    }
+
+    // Resolve any parent projects referenced that fell outside the top 1000
+    const missingProjectIds = new Set();
+    for (const fn of allProjFunctions) {
+      const spId = extractId(fn.subproject);
+      const subproject = spId ? subprojectMap[spId] : null;
+      const pId = extractId(fn.project) || (subproject ? extractId(subproject.project) : null);
+      if (pId && !projectMap[pId]) missingProjectIds.add(pId);
+    }
+    if (missingProjectIds.size > 0) {
+      const fetchedP = await Promise.all(
+        Array.from(missingProjectIds).map(id => safeFetch(`/projects?id=${id}`))
+      );
+      for (const pArr of fetchedP) {
+        for (const p of pArr) {
+          projectMap[p.id] = p;
+        }
+      }
+    }
 
     const functionGroupMap = {};
     for (const fg of allProjFunctionGroups) {

@@ -11,10 +11,17 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
   const totalAssigned = group.functions.reduce((sum, f) => sum + (f.assignedCrew?.length || 0), 0);
   const isAllGroupAssigned = totalAssigned >= totalRequired;
 
+  // Check if all functions in the group are on location/done
+  const isAllGroupDone = group.functions.every(f => {
+    const s = (f.statusName || '').toLowerCase();
+    return s.includes('plats') || s.includes('location') || s.includes('retur') || s.includes('return');
+  });
+
   return (
     <div 
-      className="bg-white/[0.04] hover:bg-white/[0.06] border border-white/10 rounded-2xl p-2.5 flex flex-col gap-2 transition-all shadow-md relative overflow-hidden"
-      style={{ borderLeftWidth: '3px', borderLeftColor: projectColor }}
+      className={`bg-white/[0.04] hover:bg-white/[0.06] border border-white/10 rounded-2xl p-2.5 flex flex-col gap-2 transition-all shadow-md relative overflow-hidden ${
+        isAllGroupDone ? 'opacity-65 hover:opacity-100' : ''
+      }`}
     >
       {/* Group Header: Project name & Function group pill */}
       <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-white/10">
@@ -63,9 +70,20 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
 
           const projStatusClass = getStatusBadgeStyle(func.statusName);
 
-          const itemBorderClass = func.isUnscheduled
-            ? 'border-l-amber-500 bg-amber-500/[0.06] border border-amber-500/25 border-dashed'
-            : (isFullyAssigned ? 'border-l-green-500' : 'border-l-red-500');
+          const sLower = (func.statusName || '').toLowerCase();
+          const isOnLocationOrDone = sLower.includes('plats') || sLower.includes('location') || sLower.includes('retur') || sLower.includes('return');
+
+          const itemStyleClass = isOnLocationOrDone
+            ? 'opacity-50 hover:opacity-100 grayscale-[0.5] hover:grayscale-0 bg-white/[0.02] border border-white/5 hover:border-white/20'
+            : func.isUnscheduled
+            ? 'bg-amber-500/[0.06] hover:bg-amber-500/[0.1] border border-amber-500/25 border-dashed'
+            : 'bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20';
+
+          const timeBadgeClass = isOnLocationOrDone
+            ? 'bg-white/5 text-white/50 text-[11px]'
+            : func.isUnscheduled
+            ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30 text-[10px]'
+            : 'bg-white/10 text-white text-[11px]';
 
           return (
             <div
@@ -74,14 +92,14 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
                 e.stopPropagation();
                 onFunctionClick(func);
               }}
-              className={`hover:bg-white/[0.08] active:scale-[0.98] transition-all border-l-[3px] rounded-xl p-2 cursor-pointer flex flex-col gap-1 shadow-sm ${itemBorderClass}`}
+              className={`active:scale-[0.98] transition-all rounded-xl p-2 cursor-pointer flex flex-col gap-1 shadow-sm ${itemStyleClass}`}
             >
               {/* Row 1: Time and Function Name */}
               <div className="flex justify-between items-center w-full">
-                <div className={`${func.isUnscheduled ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30 text-[10px]' : 'bg-white/10 text-white text-[11px]'} px-1.5 py-0.2 rounded font-bold tracking-wide`}>
+                <div className={`${timeBadgeClass} px-1.5 py-0.2 rounded font-bold tracking-wide`}>
                   {timeString}
                 </div>
-                <div className="font-bold text-white text-xs truncate max-w-[150px] text-right" title={func.name}>
+                <div className={`font-bold ${isOnLocationOrDone ? 'text-white/60' : 'text-white'} text-xs truncate max-w-[150px] text-right`} title={func.name}>
                   {func.name}
                 </div>
               </div>

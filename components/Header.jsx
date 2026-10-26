@@ -7,6 +7,8 @@ export default function Header({
   warehouseAlertCount = 0,
   weekStart, 
   onWeekChange, 
+  onResetWeek,
+  isCurrentWeek = true,
   onCreateMeeting,
   pendingSyncCount = 0,
   onOpenSyncModal,
@@ -39,7 +41,7 @@ export default function Header({
       <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
       
       {/* Left side: View-specific actions */}
-      <div className="flex items-center justify-start gap-2.5 min-w-0">
+      <div className="flex items-center justify-start gap-2.5 min-w-0 z-10">
         {currentView === 'office' ? (
           <>
             <button
@@ -103,18 +105,31 @@ export default function Header({
             <div className="flex items-center space-x-1.5 bg-white/[0.02] p-1 rounded-xl border border-white/5 shrink-0">
               <button 
                 onClick={() => onWeekChange(-1)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white shadow-sm"
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white shadow-sm cursor-pointer"
                 aria-label="Föregående vecka"
+                title="Föregående vecka"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
               </button>
-              <span className="text-xs font-medium text-white px-1.5">
-                V.{weekNum}
-              </span>
+              <button
+                onClick={onResetWeek}
+                className={`text-xs font-semibold px-2 py-1 rounded-lg transition-all active:scale-95 flex items-center gap-1 cursor-pointer ${
+                  isCurrentWeek
+                    ? 'text-white/90 hover:bg-white/10 hover:text-white'
+                    : 'text-blue-300 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 shadow-sm'
+                }`}
+                title={isCurrentWeek ? 'Nuvarande vecka' : 'Klicka för att gå till nuvarande vecka'}
+              >
+                <span>Vecka {weekNum}</span>
+                {!isCurrentWeek && (
+                  <span className="text-[9px] bg-blue-400 text-black px-1 rounded-full font-black ml-0.5">Nu</span>
+                )}
+              </button>
               <button 
                 onClick={() => onWeekChange(1)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white shadow-sm"
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white shadow-sm cursor-pointer"
                 aria-label="Nästa vecka"
+                title="Nästa vecka"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
@@ -133,9 +148,9 @@ export default function Header({
         )}
       </div>
 
-      {/* Center Title */}
-      <div className="flex items-center justify-center">
-        <h1 className="text-xl font-bold text-white tracking-wide drop-shadow-md flex items-center gap-2">
+      {/* Center Title - Perfectly centered horizontally and vertically in the header bar */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0">
+        <h1 className="text-xl font-bold text-white tracking-wide drop-shadow-md flex items-center gap-2 pointer-events-auto">
           <span>Eventopias</span>
           <span className={currentView === 'warehouse' ? 'text-amber-400' : 'text-blue-400'}>
             {currentView === 'warehouse' ? 'Lagervy' : 'Superschema 2.0'}
