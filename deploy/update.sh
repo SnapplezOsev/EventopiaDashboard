@@ -155,6 +155,12 @@ if [[ $EUID -eq 0 ]]; then
 fi
 rm -rf "$APP_DIR/.next/standalone" 2>/dev/null || true
 
+# Uppdatera version.json innan build så att den bakas in i Next.js-bygget
+FINAL_COMMIT="${REMOTE_HASH:-$(git rev-parse HEAD 2>/dev/null || echo 'unknown')}"
+echo "{\"commit\": \"${FINAL_COMMIT:0:7}\"}" > "$APP_DIR/version.json" 2>/dev/null || true
+mkdir -p "$APP_DIR/data" 2>/dev/null || true
+echo "{\"commit\": \"${FINAL_COMMIT:0:7}\"}" > "$APP_DIR/data/version.json" 2>/dev/null || true
+
 # Bygg
 info "Bygger om appen..."
 write_status "running" "building" "Bygger om applikationen (Next.js compile)..." 60
@@ -164,10 +170,6 @@ else
     (cd "$APP_DIR" && npm run build)
 fi
 ok "App ombyggd"
-
-# Uppdatera version.json
-FINAL_COMMIT="${REMOTE_HASH:-$(git rev-parse HEAD 2>/dev/null || echo 'unknown')}"
-echo "{\"commit\": \"${FINAL_COMMIT:0:7}\"}" > "$APP_DIR/version.json" 2>/dev/null || true
 
 # Kopiera static-filer till standalone
 if [[ -d "$APP_DIR/.next/standalone" ]]; then
@@ -202,4 +204,20 @@ else
     NEW_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "${FINAL_COMMIT:0:7}")
     ok "Bygge och uppdatering slutförd! Version: ${NEW_HASH}"
     write_status "success" "complete" "Bygge och uppdatering klar (version ${NEW_HASH})" 100
+fi
+
+# Starta om kiosk-webbläsaren om den körs, så att skärmen automatiskt visar den nya versionen
+KIOSK_SERVICE="${APP_NAME}-kiosk"
+if systemctl is-active --quiet "$KIOSK_SERVICE" 2>/dev/null || systemctl is-enabled --quiet "$KIOSK_SERVICE" 2>/dev/null; then
+    info "Startar om kiosk-webbläsaren ($KIOSK_SERVICE)..."
+    if [[ $EUID -eq 0 ]]; then
+        systemctl restart "$KIOSK_SERVICE" 2>/dev/null || true
+    else
+        sudo systemctl restart "$KIOSK_SERVICE" 2>/dev/null || true
+    fi
+    ok "Kiosk-webbläsaren omstartad med senaste versionen!"
+elif command -v pkill &>/dev/null && pgrep -f "chromium.*kiosk" &>/dev/null; then
+    # Fallback om Chromium körs som en fristående process
+    info "Startar om aktiv Chromium kiosk-process..."
+    pkill -f "chromium.*kiosk" 2>/dev/null || true
 fi

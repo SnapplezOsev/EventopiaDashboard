@@ -673,6 +673,41 @@ export default function Dashboard() {
     return () => window.removeEventListener('online', handleOnline);
   }, [fetchData]);
 
+  // Automatic page reload when a new server version or build is deployed
+  const loadedCommitRef = useRef(null);
+  useEffect(() => {
+    const checkVersion = async () => {
+      try {
+        const res = await fetch('/api/system/update?t=' + Date.now());
+        if (!res.ok) return;
+        const data = await res.json();
+        const serverCommit = data.currentCommit;
+
+        if (!serverCommit || serverCommit === 'unknown') return;
+
+        if (!loadedCommitRef.current) {
+          loadedCommitRef.current = serverCommit;
+          return;
+        }
+
+        // If server commit changed, reload the page
+        if (loadedCommitRef.current !== serverCommit) {
+          console.log(`Ny version upptäckt (${loadedCommitRef.current} -> ${serverCommit}). Laddar om sidan...`);
+          // Avoid interrupting user while editing in a modal unless in screensaver
+          if (isAnyModalOpenRef.current && !screensaverActive) return;
+          window.location.reload();
+        }
+      } catch (e) {
+        // Ignore network blips during service restart
+      }
+    };
+
+    const interval = setInterval(checkVersion, 3 * 60 * 1000); // Check every 3 minutes
+    checkVersion();
+
+    return () => clearInterval(interval);
+  }, [screensaverActive]);
+
   // Initial fetch + adaptive interval
   useEffect(() => {
     fetchData();
