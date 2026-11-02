@@ -1,4 +1,4 @@
-import { getStatusBadgeStyle, formatEventTimeBadge } from '@/lib/statusUtils';
+import { getStatusBadgeStyle, formatEventTimeBadge, isFunctionCompleted } from '@/lib/statusUtils';
 
 export default function EventCard({ func, onClick }) {
   const requiredAmount = func.amount || 1;
@@ -19,16 +19,15 @@ export default function EventCard({ func, onClick }) {
     ? 'Skift' 
     : (func.statusName || 'Okänd');
   const projStatusClass = getStatusBadgeStyle(displayStatus);
-  const sLower = (func.statusName || '').toLowerCase();
-  const isOnLocationOrDone = sLower.includes('plats') || sLower.includes('location') || sLower.includes('retur') || sLower.includes('return');
+  const isDone = isFunctionCompleted(func);
 
-  const cardStyleClass = isOnLocationOrDone
+  const cardStyleClass = isDone
     ? 'opacity-50 hover:opacity-100 grayscale-[0.5] hover:grayscale-0 bg-white/[0.02] border border-white/5 hover:border-white/20'
     : func.isUnscheduled
     ? 'bg-amber-500/[0.07] hover:bg-amber-500/[0.12] border border-amber-500/30 border-dashed'
     : 'bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 hover:border-white/20';
 
-  const timeBadgeClass = isOnLocationOrDone
+  const timeBadgeClass = isDone
     ? 'bg-white/5 text-white/50 text-sm'
     : func.isUnscheduled
     ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30 text-xs'
@@ -42,9 +41,10 @@ export default function EventCard({ func, onClick }) {
       {/* Row 1: Time and Function */}
       <div className="flex justify-between items-center w-full">
         <div className={`${timeBadgeClass} px-2 py-0.5 rounded-md font-bold tracking-wide flex items-center gap-1`}>
+          {isDone && <span className="text-emerald-400 font-bold text-xs" title="Avklarad">✓</span>}
           {timeString}
         </div>
-        <div className={`font-bold ${isOnLocationOrDone ? 'text-white/60' : 'text-white'} text-sm truncate max-w-[150px] text-right`} title={func.name}>
+        <div className={`font-bold ${isDone ? 'text-white/60' : 'text-white'} text-sm truncate max-w-[150px] text-right`} title={func.name}>
           {func.name}
         </div>
       </div>
