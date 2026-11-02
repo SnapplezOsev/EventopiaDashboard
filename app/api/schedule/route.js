@@ -4,6 +4,7 @@ import { fetchRentman, extractId } from '@/lib/rentman';
 import { getLocalAssignments, removeLocalAssignment } from '@/lib/localAssignments';
 import { parseWeekString } from '@/lib/weekUtils';
 import { getCachedSchedule, setCachedSchedule } from '@/lib/scheduleCache';
+import { getGoogleCalendarEvents } from '@/lib/googleCalendar';
 
 // Module-level global cache to make repeated queries and prefetching near-instantaneous (under 5ms)
 if (!globalThis._scheduleCache) {
@@ -116,7 +117,8 @@ export async function GET(request) {
       allAppointments,
       allAppCrew,
       allTasks,
-      allTaskAssignments
+      allTaskAssignments,
+      allGoogleEvents
     ] = await Promise.all([
       getReferenceData(safeFetch, forceRefresh),
       safeFetch(`/projectfunctions?planperiod_start[gte]=${weekStartStr}&planperiod_start[lte]=${weekEndStr}T23:59:59&limit=1000`),
@@ -127,7 +129,11 @@ export async function GET(request) {
       safeFetch('/appointments?limit=500&sort=-id'),
       safeFetch('/appointmentcrew?limit=500&sort=-id'),
       safeFetch('/tasks?limit=500&sort=-id'),
-      safeFetch('/taskassignments?limit=1000&sort=-id')
+      safeFetch('/taskassignments?limit=1000&sort=-id'),
+      getGoogleCalendarEvents(weekStart, weekEnd).catch(err => {
+        console.warn('Google Calendar fetch warning:', err.message);
+        return [];
+      })
     ]);
 
     const {
@@ -501,7 +507,7 @@ export async function GET(request) {
         projectColor: formatHexColor(app.color, '#E67E22'),
         customerName: '',
         locationName: app.location || '',
-        statusName: 'Bekräftad',
+        statusName: '',
         vehicleNames: [],
         amount: 1,
         subprojectId: `app-${app.id}`,
@@ -509,6 +515,99 @@ export async function GET(request) {
         planperiod_end: appEnd,
         assignedCrew,
         remark: app.remark || ''
+      });
+    }
+
+    // 3b. Process Google Calendar Events
+    for (const item of (allGoogleEvents || [])) {
+      // Skip events synced from dashboard to Google Calendar
+      const isFromDashboard = 
+        item.extendedProperties?.private?.source === 'eventopia-dashboard' ||
+        item.id?.startsWith('fn') ||
+        item.id?.startsWith('app');
+      if (isFromDashboard) continue;
+
+      if (item.status === 'cancelled') continue;
+
+      const isAllDay = Boolean(item.start?.date && !item.start?.dateTime);
+      let startIso = item.start?.dateTime || (item.start?.date ? `${item.start.date}T00:00:00` : null);
+      let endIso = item.end?.dateTime || (item.end?.date ? `${item.start.date}T23:59:59` : startIso);
+
+      if (!startIso) continue;
+      if (!isInWeek(startIso, endIso)) continue;
+
+      // Extract and map attendees if any
+      const assignedCrew = [];
+      if (Array.isArray(item.attendees)) {
+        for (const att of item.attendees) {
+          const attEmail = (att.email || '').toLowerCase().trim();
+          const attName = (att.displayName || att.email || '').trim();
+          if (!attName) continue;
+
+          const allCrewList = [...crewResult.internal, ...crewResult.freelancers];
+          const matched = allCrewList.find(c => 
+            (attEmail && c.email && c.email.toLowerCase() === attEmail) ||
+            (c.name && attName.toLowerCase().includes(c.name.toLowerCase()))
+          );
+
+          if (matched) {
+            assignedCrew.push({
+              projectCrewId: `gcal-${item.id}-${matched.id}`,
+              crewId: matched.id,
+              name: matched.name,
+              category: matched.category,
+              source: 'google_calendar'
+            });
+          } else if (att.displayName) {
+            assignedCrew.push({
+              projectCrewId: `gcal-${item.id}-${att.email || att.displayName}`,
+              crewId: null,
+              name: att.displayName,
+              category: 'freelancer',
+              source: 'google_calendar'
+            });
+          }
+        }
+      }
+
+      // Merge local assignments created on dashboard if any
+      const localForGcal = localAssignments.filter(la => String(la.functionId) === `gcal-${item.id}`);
+      for (const la of localForGcal) {
+        if (!assignedCrew.some(ac => ac.crewId === la.crewId)) {
+          const cId = la.crewId;
+          const name = crewMap[cId] || 'Okänd';
+          const isInternal = crewResult.internal.some(x => x.id === cId);
+          const isFreelancer = crewResult.freelancers.some(x => x.id === cId);
+          assignedCrew.push({
+            projectCrewId: la.id,
+            crewId: cId,
+            name,
+            category: isInternal ? 'internal' : (isFreelancer ? 'freelancer' : 'hidden'),
+            source: 'local'
+          });
+        }
+      }
+
+      functions.push({
+        id: `gcal-${item.id}`,
+        realId: item.id,
+        name: item.summary || 'Kalenderhändelse',
+        type: 'appointment',
+        projectId: `gcal-${item.id}`,
+        projectName: 'Google Kalender',
+        projectColor: '#4285F4',
+        customerName: '',
+        locationName: item.location || '',
+        statusName: '',
+        vehicleNames: [],
+        amount: Math.max(1, assignedCrew.length),
+        subprojectId: `gcal-${item.id}`,
+        planperiod_start: startIso,
+        planperiod_end: endIso,
+        assignedCrew,
+        remark: item.description || '',
+        isAllDay,
+        source: 'google_calendar'
       });
     }
 

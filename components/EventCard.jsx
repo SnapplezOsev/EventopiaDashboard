@@ -15,11 +15,21 @@ export default function EventCard({ func, onClick }) {
   }).join(', ') || 'Ingen';
 
   const isInternalShift = !func.projectName && func.type === 'shift';
-  const displayStatus = isInternalShift && (func.statusName === 'Koncept' || !func.statusName) 
-    ? 'Skift' 
-    : (func.statusName || 'Okänd');
-  const projStatusClass = getStatusBadgeStyle(displayStatus);
+  const isAppointment = func.type === 'appointment' || func.type === 'google_calendar';
   const isDone = isFunctionCompleted(func);
+
+  let displayStatus = null;
+  if (isAppointment) {
+    displayStatus = isDone ? 'Klart' : null;
+  } else if (isInternalShift && (func.statusName === 'Koncept' || !func.statusName)) {
+    displayStatus = 'Skift';
+  } else {
+    displayStatus = func.statusName || 'Okänd';
+  }
+
+  const projStatusClass = isAppointment && isDone
+    ? 'bg-white/10 text-white/50 border-white/15'
+    : getStatusBadgeStyle(displayStatus);
 
   const cardStyleClass = isDone
     ? 'opacity-50 hover:opacity-100 grayscale-[0.5] hover:grayscale-0 bg-white/[0.02] border border-white/5 hover:border-white/20'
@@ -94,9 +104,11 @@ export default function EventCard({ func, onClick }) {
       {/* Badges: Status, Vehicle, and Assignee count */}
       <div className="flex justify-between items-center mt-1 border-t border-white/5 pt-1.5 gap-1">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${projStatusClass} font-semibold uppercase tracking-wider shrink-0`}>
-            {displayStatus}
-          </span>
+          {displayStatus && (
+            <span className={`text-[10px] px-2 py-0.5 rounded-full border ${projStatusClass} font-semibold uppercase tracking-wider shrink-0`}>
+              {displayStatus}
+            </span>
+          )}
           {func.vehicleNames && func.vehicleNames.length > 0 && (
             <span className="text-[10px] px-2 py-0.5 rounded-full border bg-white/10 text-white/80 border-white/20 font-medium truncate max-w-[80px]" title={func.vehicleNames.join(', ')}>
               🚚 {func.vehicleNames.join(', ')}

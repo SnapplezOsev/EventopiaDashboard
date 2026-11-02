@@ -98,17 +98,31 @@ export default function WeekGrid({ functions = [], weekStart, onFunctionClick, i
   const getWeekDates = () => {
     let monday;
     if (weekStart) {
-      const [y, m, d] = (typeof weekStart === 'string' ? weekStart : weekStart.toISOString().slice(0, 10)).split('-').map(Number);
-      monday = new Date(y, m - 1, d);
+      if (typeof weekStart === 'string') {
+        const [y, m, d] = weekStart.slice(0, 10).split('-').map(Number);
+        monday = new Date(y, m - 1, d, 0, 0, 0, 0);
+      } else if (weekStart instanceof Date) {
+        monday = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate(), 0, 0, 0, 0);
+      } else {
+        const d = new Date(weekStart);
+        monday = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+      }
     } else {
       const now = new Date();
       const day = now.getDay() || 7;
-      monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (day - 1));
+      monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (day - 1), 0, 0, 0, 0);
     }
+
+    // Force monday to always be a Monday (ISO day 1: Mon=1 ... Sun=7)
+    const dayOfWeek = monday.getDay() || 7;
+    if (dayOfWeek !== 1) {
+      monday.setDate(monday.getDate() - (dayOfWeek - 1));
+    }
+    monday.setHours(0, 0, 0, 0);
+
     const week = [];
     for (let i = 0; i < 7; i++) {
-      const day = new Date(monday);
-      day.setDate(monday.getDate() + i);
+      const day = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i, 0, 0, 0, 0);
       week.push(day);
     }
     return week;
@@ -117,11 +131,16 @@ export default function WeekGrid({ functions = [], weekStart, onFunctionClick, i
   const weekDays = getWeekDates();
   const today = new Date();
 
-  // Scroll to today on mount or when week changes
+  // Scroll to today on mount or when week changes (scrolls to beginning if today is not in this week)
   useEffect(() => {
     if (todayRef.current && scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({
         left: todayRef.current.offsetLeft - scrollContainerRef.current.offsetLeft,
+        behavior: 'smooth'
+      });
+    } else if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        left: 0,
         behavior: 'smooth'
       });
     }

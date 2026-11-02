@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { getStatusBadgeStyle, formatEventTimeBadge, formatFullDateRange } from '@/lib/statusUtils';
+import { getStatusBadgeStyle, formatEventTimeBadge, formatFullDateRange, isFunctionCompleted } from '@/lib/statusUtils';
 
 export default function AssignmentModal({ 
   func, 
@@ -25,7 +25,9 @@ export default function AssignmentModal({
     return new Date(isoString).toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' });
   };
 
-  const isAppointment = func.type === 'appointment';
+  const isAppointment = func.type === 'appointment' || func.type === 'google_calendar';
+  const isGoogleCalendar = func.source === 'google_calendar' || func.type === 'google_calendar';
+  const isDone = isFunctionCompleted(func);
 
   const internalCrew = crew?.internal || [];
   const freelancerCrew = crew?.freelancers || [];
@@ -57,9 +59,16 @@ export default function AssignmentModal({
             <div className="flex-1 min-w-0 pr-4">
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 {isAppointment ? (
-                  <span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">
-                    Möte
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`${isGoogleCalendar ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' : 'bg-orange-500/20 text-orange-400 border-orange-500/30'} px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border`}>
+                      {isGoogleCalendar ? 'Google Kalender' : 'Möte'}
+                    </span>
+                    {isDone && (
+                      <span className="bg-white/10 text-white/60 border border-white/15 px-2.5 py-1 rounded-lg text-xs font-semibold uppercase tracking-wider">
+                        Klart
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">
                     {func.type === 'project' ? 'Projekt' : 'Funktion'}

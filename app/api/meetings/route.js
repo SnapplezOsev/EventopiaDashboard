@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { postRentman, putRentman, deleteRentman } from '@/lib/rentman';
+import { deleteGoogleCalendarEvent } from '@/lib/googleCalendar';
 
 export async function POST(request) {
   try {
@@ -98,6 +99,12 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'Missing meeting ID' }, { status: 400 });
+
+    if (String(id).startsWith('gcal-')) {
+      const gcalEventId = String(id).replace('gcal-', '');
+      await deleteGoogleCalendarEvent(gcalEventId);
+      return NextResponse.json({ success: true, deleted: id });
+    }
 
     const realId = String(id).replace('app-', '');
     await deleteRentman(`/appointments/${realId}`);

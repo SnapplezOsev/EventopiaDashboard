@@ -24,6 +24,14 @@ function toYYYYMMDD(str) {
   return str;
 }
 
+function getLocalIsoOffset(d = new Date()) {
+  const offsetMin = -d.getTimezoneOffset();
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const hours = String(Math.floor(Math.abs(offsetMin) / 60)).padStart(2, '0');
+  const minutes = String(Math.abs(offsetMin) % 60).padStart(2, '0');
+  return `${sign}${hours}:${minutes}`;
+}
+
 export default function MeetingModal({ meeting, crew, onClose, onSave, onDelete }) {
   const isEditing = Boolean(meeting);
 
@@ -63,8 +71,9 @@ export default function MeetingModal({ meeting, crew, onClose, onSave, onDelete 
     if (!name.trim() || !isoDate || !startTime || !endTime) return;
     setIsSaving(true);
 
-    const startStr = `${isoDate}T${startTime}:00+02:00`;
-    const endStr = `${isoDate}T${endTime}:00+02:00`;
+    const offset = getLocalIsoOffset(new Date(isoDate));
+    const startStr = `${isoDate}T${startTime}:00${offset}`;
+    const endStr = `${isoDate}T${endTime}:00${offset}`;
 
     await onSave({
       id: meeting?.realId || meeting?.id,
