@@ -27,6 +27,30 @@ fi
 
 STATUS_FILE="$APP_DIR/data/update-status.json"
 
+# Rensa disken vid anrop med --clean
+if [[ "${1:-}" == "--clean" ]]; then
+    echo "ℹ  Startar djupgående systemrensning..."
+    journalctl --vacuum-size=50M 2>/dev/null || true
+    if command -v flatpak &>/dev/null; then
+        echo "ℹ  Rensar Flatpak-runtimes..."
+        flatpak uninstall --all -y 2>/dev/null || true
+        flatpak uninstall --unused -y 2>/dev/null || true
+        rm -rf /var/lib/flatpak/repo/objects/* 2>/dev/null || true
+    fi
+    if command -v pacman &>/dev/null; then
+        echo "ℹ  Rensar föräldralösa paket och pacman-cache..."
+        ORPHANS=$(pacman -Qtdq 2>/dev/null || true)
+        if [[ -n "$ORPHANS" ]]; then
+            pacman -Rns --noconfirm $ORPHANS 2>/dev/null || true
+        fi
+        pacman -Sc --noconfirm 2>/dev/null || true
+    fi
+    rm -rf /tmp/* /var/tmp/* 2>/dev/null || true
+    echo "✔  Systemrensning klar!"
+    df -h /
+    exit 0
+fi
+
 # Initiera variabler för att undvika 'unbound variable' med set -u
 LOCAL_HASH=""
 REMOTE_HASH=""
@@ -221,3 +245,8 @@ elif command -v pkill &>/dev/null && pgrep -f "chromium.*kiosk" &>/dev/null; the
     info "Startar om aktiv Chromium kiosk-process..."
     pkill -f "chromium.*kiosk" 2>/dev/null || true
 fi
+
+# Automatisk diskunderhåll efter uppdatering
+journalctl --vacuum-size=50M 2>/dev/null || true
+rm -rf /tmp/* /var/tmp/* 2>/dev/null || true
+
