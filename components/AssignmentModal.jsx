@@ -59,16 +59,9 @@ export default function AssignmentModal({
             <div className="flex-1 min-w-0 pr-4">
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 {isAppointment ? (
-                  <div className="flex items-center gap-1.5">
-                    <span className={`${isGoogleCalendar ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' : 'bg-orange-500/20 text-orange-400 border-orange-500/30'} px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border`}>
-                      {isGoogleCalendar ? 'Google Kalender' : 'Möte'}
-                    </span>
-                    {isDone && (
-                      <span className="bg-white/10 text-white/60 border border-white/15 px-2.5 py-1 rounded-lg text-xs font-semibold uppercase tracking-wider">
-                        Klart
-                      </span>
-                    )}
-                  </div>
+                  <span className={`${isGoogleCalendar ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' : 'bg-orange-500/20 text-orange-400 border-orange-500/30'} px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider border`}>
+                    {isGoogleCalendar ? 'Google Kalender' : 'Möte'}
+                  </span>
                 ) : (
                   <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">
                     {func.type === 'project' ? 'Projekt' : 'Funktion'}

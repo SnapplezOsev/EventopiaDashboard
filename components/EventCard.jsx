@@ -20,16 +20,14 @@ export default function EventCard({ func, onClick }) {
 
   let displayStatus = null;
   if (isAppointment) {
-    displayStatus = isDone ? 'Klart' : null;
+    displayStatus = null;
   } else if (isInternalShift && (func.statusName === 'Koncept' || !func.statusName)) {
     displayStatus = 'Skift';
   } else {
     displayStatus = func.statusName || 'Okänd';
   }
 
-  const projStatusClass = isAppointment && isDone
-    ? 'bg-white/10 text-white/50 border-white/15'
-    : getStatusBadgeStyle(displayStatus);
+  const projStatusClass = getStatusBadgeStyle(displayStatus);
 
   const cardStyleClass = isDone
     ? 'opacity-50 hover:opacity-100 grayscale-[0.5] hover:grayscale-0 bg-white/[0.02] border border-white/5 hover:border-white/20'
@@ -50,8 +48,7 @@ export default function EventCard({ func, onClick }) {
     >
       {/* Row 1: Time and Function */}
       <div className="flex justify-between items-center w-full">
-        <div className={`${timeBadgeClass} px-2 py-0.5 rounded-md font-bold tracking-wide flex items-center gap-1`}>
-          {isDone && <span className="text-emerald-400 font-bold text-xs" title="Avklarad">✓</span>}
+        <div className={`${timeBadgeClass} px-2 py-0.5 rounded-md font-bold tracking-wide`}>
           {timeString}
         </div>
         <div className={`font-bold ${isDone ? 'text-white/60' : 'text-white'} text-sm truncate max-w-[150px] text-right`} title={func.name}>

@@ -91,8 +91,7 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
             >
               {/* Row 1: Time and Function Name */}
               <div className="flex justify-between items-center w-full">
-                <div className={`${timeBadgeClass} px-2 py-0.5 rounded-md font-bold tracking-wide flex items-center gap-1`}>
-                  {isDone && <span className="text-emerald-400 font-bold text-xs" title="Avklarad">✓</span>}
+                <div className={`${timeBadgeClass} px-2 py-0.5 rounded-md font-bold tracking-wide`}>
                   {timeString}
                 </div>
                 <div className={`font-bold ${isDone ? 'text-white/60' : 'text-white'} text-xs truncate max-w-[150px] text-right`} title={func.name}>
