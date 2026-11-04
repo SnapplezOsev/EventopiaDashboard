@@ -1,5 +1,5 @@
 'use client';
-import { getStatusBadgeStyle, formatEventTimeBadge, isFunctionCompleted } from '@/lib/statusUtils';
+import { getStatusBadgeStyle, formatEventTimeBadge, isFunctionCompleted, shortenLeverans } from '@/lib/statusUtils';
 
 export default function GroupedEventCard({ group, onFunctionClick }) {
   const projectColor = group.projectColor?.startsWith('#') 
@@ -46,7 +46,7 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
             title={`Funktionsgrupp: ${group.groupName}`}
           >
             <span>📁</span>
-            <span className="truncate max-w-[90px]">{group.groupName}</span>
+            <span className="truncate max-w-[90px]">{shortenLeverans(group.groupName)}</span>
           </span>
         </div>
       </div>
@@ -95,7 +95,7 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
                   {timeString}
                 </div>
                 <div className={`font-bold ${isDone ? 'text-white/60' : 'text-white'} text-xs truncate max-w-[150px] text-right`} title={func.name}>
-                  {func.name}
+                  {shortenLeverans(func.name)}
                 </div>
               </div>
 

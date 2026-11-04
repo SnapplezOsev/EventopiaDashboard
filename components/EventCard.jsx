@@ -1,4 +1,4 @@
-import { getStatusBadgeStyle, formatEventTimeBadge, isFunctionCompleted } from '@/lib/statusUtils';
+import { getStatusBadgeStyle, formatEventTimeBadge, isFunctionCompleted, shortenLeverans } from '@/lib/statusUtils';
 
 export default function EventCard({ func, onClick }) {
   const requiredAmount = func.amount || 1;
@@ -52,7 +52,7 @@ export default function EventCard({ func, onClick }) {
           {timeString}
         </div>
         <div className={`font-bold ${isDone ? 'text-white/60' : 'text-white'} text-sm truncate max-w-[150px] text-right`} title={func.name}>
-          {func.name}
+          {shortenLeverans(func.name)}
         </div>
       </div>
 
@@ -82,7 +82,7 @@ export default function EventCard({ func, onClick }) {
               className="text-[10px] text-blue-300 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.2 rounded-md font-medium shrink-0 truncate max-w-[90px]"
               title={`Funktionsgrupp: ${func.functionGroupName}`}
             >
-              📁 {func.functionGroupName}
+              📁 {shortenLeverans(func.functionGroupName)}
             </span>
           )}
         </div>

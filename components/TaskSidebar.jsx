@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { formatFullDateRange, formatEventTimeBadge } from '@/lib/statusUtils';
+import { formatFullDateRange, formatEventTimeBadge, shortenLeverans } from '@/lib/statusUtils';
 
 export default function TaskSidebar({ 
   tasks = [], 
@@ -141,7 +141,7 @@ export default function TaskSidebar({
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0">
                       <div className="text-white font-bold text-sm truncate" title={func.name}>
-                        {func.name}
+                        {shortenLeverans(func.name)}
                       </div>
                       {func.projectName && (
                         <div className="flex items-center gap-1.5 mt-0.5">

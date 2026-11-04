@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { getStatusBadgeStyle, formatEventTimeBadge, formatFullDateRange, isFunctionCompleted } from '@/lib/statusUtils';
+import { getStatusBadgeStyle, formatEventTimeBadge, formatFullDateRange, isFunctionCompleted, shortenLeverans } from '@/lib/statusUtils';
 
 export default function AssignmentModal({ 
   func, 
@@ -11,10 +11,10 @@ export default function AssignmentModal({
   onDeleteMeeting, 
   onClose 
 }) {
-  if (!func) return null;
-
   const [crewSearch, setCrewSearch] = useState('');
   const [crewCategoryTab, setCrewCategoryTab] = useState('internal'); // 'internal' | 'freelancer'
+
+  if (!func) return null;
 
   const formatTime = (isoString) => {
     if (!isoString) return '';
@@ -81,20 +81,20 @@ export default function AssignmentModal({
                   </span>
                 )}
               </div>
-              <h2 className="text-2xl md:text-3xl font-bold text-white leading-tight truncate">{func.name}</h2>
+              <h2 className="text-2xl md:text-3xl font-bold text-white leading-tight truncate">{shortenLeverans(func.name)}</h2>
               {!isAppointment && func.projectName && (
                 <div className="text-lg font-medium text-white/60 truncate mt-0.5 flex items-center gap-2">
                   <span>{func.projectName}</span>
                   {func.functionGroupName && (
                     <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-lg font-bold">
-                      📁 {func.functionGroupName}
+                      📁 {shortenLeverans(func.functionGroupName)}
                     </span>
                   )}
                 </div>
               )}
               {!isAppointment && !func.projectName && func.functionGroupName && (
                 <div className="text-sm font-medium text-blue-300 truncate mt-0.5 flex items-center gap-1.5">
-                  <span>📁 Funktionsgrupp: {func.functionGroupName}</span>
+                  <span>📁 Funktionsgrupp: {shortenLeverans(func.functionGroupName)}</span>
                 </div>
               )}
             </div>

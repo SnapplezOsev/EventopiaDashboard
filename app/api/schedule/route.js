@@ -524,6 +524,7 @@ export async function GET(request) {
       const isFromDashboard = 
         item.extendedProperties?.private?.source === 'eventopia-dashboard' ||
         item.id?.startsWith('fn') ||
+        item.id?.startsWith('grp') ||
         item.id?.startsWith('app');
       if (isFromDashboard) continue;
 
