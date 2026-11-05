@@ -47,6 +47,8 @@ CLAUDE.md
 AGENTS.md
 handover_document*
 *.md.backup
+*.local.md
+DEVICES.local.md
 /data/*.json
 /data/.cache/
 .cache/
