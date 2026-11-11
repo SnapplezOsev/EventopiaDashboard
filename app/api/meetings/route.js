@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { fetchRentman, postRentman, putRentman, deleteRentman, extractId } from '@/lib/rentman';
 import { deleteGoogleCalendarEvent, updateGoogleCalendarEvent, toGoogleEventId } from '@/lib/googleCalendar';
+import { clearCachedSchedule } from '@/lib/scheduleCache';
 
 export async function POST(request) {
   try {
@@ -37,6 +38,7 @@ export async function POST(request) {
       }
     }
 
+    clearCachedSchedule();
     return NextResponse.json(data);
   } catch (error) {
     console.error('Meeting POST Error:', error);
@@ -56,6 +58,7 @@ export async function PUT(request) {
     // Handle editing an event from Google Calendar directly
     if (String(id).startsWith('gcal-')) {
       const gcalResult = await updateGoogleCalendarEvent(id, updateData);
+      clearCachedSchedule();
       return NextResponse.json({ success: true, data: gcalResult });
     }
 
@@ -117,6 +120,7 @@ export async function PUT(request) {
       }
     }
 
+    clearCachedSchedule();
     return NextResponse.json(data);
   } catch (error) {
     console.error('Meeting PUT Error:', error);
@@ -133,6 +137,7 @@ export async function DELETE(request) {
     if (String(id).startsWith('gcal-')) {
       const gcalEventId = String(id).replace('gcal-', '');
       await deleteGoogleCalendarEvent(gcalEventId);
+      clearCachedSchedule();
       return NextResponse.json({ success: true, deleted: id });
     }
 
@@ -146,6 +151,7 @@ export async function DELETE(request) {
       // Ignore if not present
     }
 
+    clearCachedSchedule();
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Meeting DELETE Error:', error);

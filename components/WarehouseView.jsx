@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 
 export default function WarehouseView({
   warehouseData,
@@ -37,7 +37,7 @@ export default function WarehouseView({
   const [newNoteText, setNewNoteText] = useState('');
 
   // Sökfilter
-  const filterBySearch = (item, extraFields = []) => {
+  const filterBySearch = useCallback((item, extraFields = []) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
     const nameMatch = (item.name || item.modelName || item.equipmentName || '').toLowerCase().includes(q);
@@ -46,7 +46,7 @@ export default function WarehouseView({
     const repMatch = (item.reporterName || item.reportedBy || '').toLowerCase().includes(q);
     const extraMatch = extraFields.some(f => (f || '').toLowerCase().includes(q));
     return nameMatch || detailMatch || projMatch || repMatch || extraMatch;
-  };
+  }, [searchQuery]);
 
   // 1. Reparationer
   const filteredRepairs = useMemo(() => {
@@ -56,7 +56,7 @@ export default function WarehouseView({
       if (repairFilter === 'done' && !item.isTested) return false;
       return filterBySearch(item, [item.equipmentCode, String(item.number)]);
     });
-  }, [warehouseData?.testingAndRepairs, repairFilter, searchQuery]);
+  }, [warehouseData?.testingAndRepairs, repairFilter, filterBySearch]);
 
   // 2. Förlorad utrustning (per modell)
   const filteredLostGroups = useMemo(() => {
@@ -79,13 +79,13 @@ export default function WarehouseView({
   const filteredLostRaw = useMemo(() => {
     const list = warehouseData?.lostEquipment || [];
     return list.filter(item => filterBySearch(item, [item.model, item.project]));
-  }, [warehouseData?.lostEquipment, searchQuery]);
+  }, [warehouseData?.lostEquipment, filterBySearch]);
 
   // 3. Uppgifter
   const filteredTasks = useMemo(() => {
     const list = warehouseData?.tasks || [];
     return list.filter(item => filterBySearch(item, item.assignedCrew?.map(c => c.name)));
-  }, [warehouseData?.tasks, searchQuery]);
+  }, [warehouseData?.tasks, filterBySearch]);
 
   const notes = warehouseData?.quickNotes || [];
 

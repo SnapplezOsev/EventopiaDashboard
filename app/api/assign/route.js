@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { postRentman } from '@/lib/rentman';
 import { addLocalAssignment } from '@/lib/localAssignments';
+import { clearCachedSchedule } from '@/lib/scheduleCache';
 
 export async function POST(request) {
   try {
@@ -10,6 +11,8 @@ export async function POST(request) {
     if (!functionId || !crewId) {
       return NextResponse.json({ error: 'functionId and crewId are required' }, { status: 400 });
     }
+
+    clearCachedSchedule();
 
     const fnStr = String(functionId);
 

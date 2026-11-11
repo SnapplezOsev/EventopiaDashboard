@@ -145,8 +145,11 @@ export default function SettingsModal({ onClose, onSave, currentSettings }) {
   }, []);
 
   useEffect(() => {
-    checkUpdates();
-    fetchCalendarStatus();
+    const timer = setTimeout(() => {
+      checkUpdates();
+      fetchCalendarStatus();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [checkUpdates, fetchCalendarStatus]);
 
   const handleSaveCalendarId = async () => {

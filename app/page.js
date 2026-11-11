@@ -179,6 +179,9 @@ function shouldShowScreensaver(settings) {
   return false;
 }
 
+// Cache TTL for client-side week data
+const CLIENT_WEEK_CACHE_TTL = 45 * 1000; // 45 seconds (ensures fresh calendar & Rentman updates)
+
 // --- Main Dashboard Component ---
 export default function Dashboard() {
   const [state, dispatch] = useReducer(dashboardReducer, initialState);
@@ -204,8 +207,11 @@ export default function Dashboard() {
   const wakeTimeoutRef = useRef(null);
   const forceSleepRef = useRef(false);
 
-  const isAnyModalOpenRef = useRef(false);
-  isAnyModalOpenRef.current = isSettingsModalOpen || isMeetingModalOpen || isSyncModalOpen || state.isTaskModalOpen || Boolean(state.selectedFunction);
+  const isAnyModalOpen = isSettingsModalOpen || isMeetingModalOpen || isSyncModalOpen || state.isTaskModalOpen || Boolean(state.selectedFunction);
+  const isAnyModalOpenRef = useRef(isAnyModalOpen);
+  useEffect(() => {
+    isAnyModalOpenRef.current = isAnyModalOpen;
+  }, [isAnyModalOpen]);
 
   // Fetch Warehouse Data
   const fetchWarehouseData = useCallback(async (forceRefresh = false) => {
@@ -227,7 +233,10 @@ export default function Dashboard() {
   // Fetch warehouse data immediately when switching to warehouse view
   useEffect(() => {
     if (currentView === 'warehouse') {
-      fetchWarehouseData();
+      const timer = setTimeout(() => {
+        fetchWarehouseData();
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [currentView, fetchWarehouseData]);
 
@@ -421,6 +430,7 @@ export default function Dashboard() {
   }, []);
 
   // Idle reset function: called on ANY user interaction when awake
+  const resetIdleTimerRef = useRef(null);
   const resetIdleTimer = useCallback(() => {
     if (wakeTimeoutRef.current) {
       clearTimeout(wakeTimeoutRef.current);
@@ -440,13 +450,16 @@ export default function Dashboard() {
         wakeTimeoutRef.current = null;
         // Never put the screen to sleep if a modal is open!
         if (isAnyModalOpenRef.current) {
-          resetIdleTimer();
+          resetIdleTimerRef.current?.();
           return;
         }
         setScreensaverActive(true);
       }, durationMs);
     }
   }, [screensaverActive, settings]);
+  useEffect(() => {
+    resetIdleTimerRef.current = resetIdleTimer;
+  }, [resetIdleTimer]);
 
   // Global activity listener (click, touch, pointer, keydown) to keep screen awake on interaction
   useEffect(() => {
@@ -476,6 +489,7 @@ export default function Dashboard() {
 
   // Inactivity timer to reset week navigation to current week after 2 minutes of idle
   const weekIdleTimerRef = useRef(null);
+  const resetWeekIdleTimerRef = useRef(null);
 
   const resetWeekIdleTimer = useCallback(() => {
     if (weekIdleTimerRef.current) {
@@ -489,13 +503,16 @@ export default function Dashboard() {
         weekIdleTimerRef.current = null;
         // Don't auto-reset week if a modal is open
         if (isAnyModalOpenRef.current) {
-          resetWeekIdleTimer();
+          resetWeekIdleTimerRef.current?.();
           return;
         }
         dispatch({ type: 'RESET_WEEK' });
       }, 2 * 60 * 1000); // 2 minutes
     }
   }, [state.weekOffset]);
+  useEffect(() => {
+    resetWeekIdleTimerRef.current = resetWeekIdleTimer;
+  }, [resetWeekIdleTimer]);
 
   useEffect(() => {
     resetWeekIdleTimer();
@@ -528,10 +545,13 @@ export default function Dashboard() {
     if (saved) {
       try { 
         const parsed = JSON.parse(saved);
-        setSettings(parsed);
-        if (parsed.defaultView && (parsed.defaultView === 'office' || parsed.defaultView === 'warehouse')) {
-          setCurrentView(parsed.defaultView);
-        }
+        const timer = setTimeout(() => {
+          setSettings(parsed);
+          if (parsed.defaultView && (parsed.defaultView === 'office' || parsed.defaultView === 'warehouse')) {
+            setCurrentView(parsed.defaultView);
+          }
+        }, 0);
+        return () => clearTimeout(timer);
       } catch(e) {}
     }
   }, []);
@@ -560,9 +580,10 @@ export default function Dashboard() {
 
   // Cache of fetched weeks: weekStr -> { data, timestamp }
   const weekCacheRef = useRef(new Map());
-  const CLIENT_WEEK_CACHE_TTL = 45 * 1000; // 45 seconds (ensures fresh calendar & Rentman updates)
   const currentOffsetRef = useRef(state.weekOffset);
-  currentOffsetRef.current = state.weekOffset;
+  useEffect(() => {
+    currentOffsetRef.current = state.weekOffset;
+  }, [state.weekOffset]);
   const prefetchTimerRef = useRef(null);
 
   // Background auto-sync to Google Calendar
@@ -689,11 +710,11 @@ export default function Dashboard() {
   // Automatic retry timer on error (retries every 10 seconds)
   useEffect(() => {
     if (!state.error) {
-      setRetryCountdown(null);
-      return;
+      const timer = setTimeout(() => setRetryCountdown(null), 0);
+      return () => clearTimeout(timer);
     }
 
-    setRetryCountdown(10);
+    const initTimer = setTimeout(() => setRetryCountdown(10), 0);
     const timer = setInterval(() => {
       setRetryCountdown(prev => {
         if (prev === null || prev <= 1) {
@@ -704,7 +725,10 @@ export default function Dashboard() {
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(initTimer);
+      clearInterval(timer);
+    };
   }, [state.error, fetchData]);
 
   // Auto-refetch immediately when network comes back online
@@ -754,7 +778,9 @@ export default function Dashboard() {
 
   // Initial fetch + adaptive interval
   useEffect(() => {
-    fetchData();
+    const initTimer = setTimeout(() => {
+      fetchData();
+    }, 0);
 
     let intervalId;
     const setupInterval = () => {
@@ -768,7 +794,10 @@ export default function Dashboard() {
     };
     setupInterval();
 
-    return () => clearInterval(intervalId);
+    return () => {
+      clearTimeout(initTimer);
+      clearInterval(intervalId);
+    };
   }, [fetchData]);
 
   // Periodic screensaver schedule check (every 1 minute)

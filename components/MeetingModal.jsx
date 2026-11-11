@@ -78,6 +78,11 @@ export default function MeetingModal({ meeting, crew, onClose, onSave, onDelete 
     const startDate = new Date(y, (m || 1) - 1, d || 1, startH || 0, startM || 0, 0);
     const endDate = new Date(y, (m || 1) - 1, d || 1, endH || 0, endM || 0, 0);
 
+    // If meeting ends at or past midnight (e.g. 23:00 - 01:00), rollover endDate to next day
+    if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime()) && endDate <= startDate) {
+      endDate.setDate(endDate.getDate() + 1);
+    }
+
     const startStr = !isNaN(startDate.getTime()) ? startDate.toISOString() : `${isoDate}T${startTime}:00Z`;
     const endStr = !isNaN(endDate.getTime()) ? endDate.toISOString() : `${isoDate}T${endTime}:00Z`;
 

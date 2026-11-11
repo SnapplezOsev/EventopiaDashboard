@@ -68,7 +68,7 @@ if (!globalThis._inFlightSchedules) {
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-    const weekParam = searchParams.get('week');
+    const weekParam = searchParams.get('week') || searchParams.get('date');
     const forceRefresh = searchParams.get('refresh') === 'true';
     
     const { weekStart, weekEnd, weekStartStr, weekEndStr, weekStr } = parseWeekString(weekParam);
@@ -597,7 +597,19 @@ export async function GET(request) {
 
       const isAllDay = Boolean(item.start?.date && !item.start?.dateTime);
       let startIso = item.start?.dateTime || (item.start?.date ? `${item.start.date}T00:00:00` : null);
-      let endIso = item.end?.dateTime || (item.end?.date ? `${item.start.date}T23:59:59` : startIso);
+      let endIso = item.end?.dateTime || (item.end?.date ? `${item.end.date}T23:59:59` : startIso);
+
+      if (isAllDay && item.end?.date) {
+        // Google Calendar end.date is exclusive (e.g. 2026-11-12 for a 1-day event on 2026-11-11)
+        const [ey, em, ed] = item.end.date.split('-').map(Number);
+        const inclusiveEnd = new Date(ey, em - 1, ed - 1);
+        if (!isNaN(inclusiveEnd.getTime())) {
+          const yr = inclusiveEnd.getFullYear();
+          const mo = String(inclusiveEnd.getMonth() + 1).padStart(2, '0');
+          const dy = String(inclusiveEnd.getDate()).padStart(2, '0');
+          endIso = `${yr}-${mo}-${dy}T23:59:59`;
+        }
+      }
 
       if (!startIso) continue;
       if (!isInWeek(startIso, endIso)) continue;

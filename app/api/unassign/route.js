@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { deleteRentman, fetchRentman, extractId } from '@/lib/rentman';
 import { removeLocalAssignment } from '@/lib/localAssignments';
+import { clearCachedSchedule } from '@/lib/scheduleCache';
 
 export async function POST(request) {
   try {
@@ -13,8 +14,13 @@ export async function POST(request) {
 
     // Always remove from local persistent store if matched
     removeLocalAssignment(projectCrewId, functionId, crewId);
+    clearCachedSchedule();
 
-    if (typeof projectCrewId === 'string' && (projectCrewId.startsWith('temp-') || projectCrewId.startsWith('local-'))) {
+    const isGcal = (typeof projectCrewId === 'string' && projectCrewId.startsWith('gcal-')) || 
+                   (typeof functionId === 'string' && functionId.startsWith('gcal-'));
+    const isLocal = typeof projectCrewId === 'string' && (projectCrewId.startsWith('temp-') || projectCrewId.startsWith('local-'));
+
+    if (isLocal || isGcal) {
       return NextResponse.json({ success: true });
     }
 
