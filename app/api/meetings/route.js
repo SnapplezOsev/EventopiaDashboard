@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { postRentman, putRentman, deleteRentman } from '@/lib/rentman';
-import { deleteGoogleCalendarEvent } from '@/lib/googleCalendar';
+import { fetchRentman, postRentman, putRentman, deleteRentman, extractId } from '@/lib/rentman';
+import { deleteGoogleCalendarEvent, updateGoogleCalendarEvent, toGoogleEventId } from '@/lib/googleCalendar';
 
 export async function POST(request) {
   try {
@@ -10,6 +10,16 @@ export async function POST(request) {
 
     if (!body.color) body.color = 'E67E22'; // Default color for meetings (Orange)
     body.color = String(body.color).replace('#', '');
+
+    // Ensure start and end adhere to ISO 8601 UTC format (yyyy-MM-dd'T'HH:mm:ss.SSSZ)
+    if (body.start) {
+      const s = new Date(body.start);
+      if (!isNaN(s.getTime())) body.start = s.toISOString();
+    }
+    if (body.end) {
+      const e = new Date(body.end);
+      if (!isNaN(e.getTime())) body.end = e.toISOString();
+    }
     
     // Create Appointment
     const data = await postRentman('/appointments', body);
@@ -38,14 +48,34 @@ export async function PUT(request) {
   try {
     const body = await request.json();
     const { id, pendingAssignments, ...updateData } = body;
-    const realId = String(id).replace('app-', '');
 
+    if (!id) {
+      return NextResponse.json({ error: 'Missing meeting ID' }, { status: 400 });
+    }
+
+    // Handle editing an event from Google Calendar directly
+    if (String(id).startsWith('gcal-')) {
+      const gcalResult = await updateGoogleCalendarEvent(id, updateData);
+      return NextResponse.json({ success: true, data: gcalResult });
+    }
+
+    const realId = String(id).replace('app-', '');
     if (!realId) {
       return NextResponse.json({ error: 'Missing meeting ID' }, { status: 400 });
     }
 
     if (updateData.color) {
       updateData.color = String(updateData.color).replace('#', '');
+    }
+
+    // Ensure start and end adhere to ISO 8601 UTC format (yyyy-MM-dd'T'HH:mm:ss.SSSZ)
+    if (updateData.start) {
+      const s = new Date(updateData.start);
+      if (!isNaN(s.getTime())) updateData.start = s.toISOString();
+    }
+    if (updateData.end) {
+      const e = new Date(updateData.end);
+      if (!isNaN(e.getTime())) updateData.end = e.toISOString();
     }
 
     const data = await putRentman(`/appointments/${realId}`, updateData);
@@ -108,6 +138,13 @@ export async function DELETE(request) {
 
     const realId = String(id).replace('app-', '');
     await deleteRentman(`/appointments/${realId}`);
+
+    // Also delete any synced copy in Google Calendar
+    try {
+      await deleteGoogleCalendarEvent(toGoogleEventId(`app-${realId}`));
+    } catch (e) {
+      // Ignore if not present
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

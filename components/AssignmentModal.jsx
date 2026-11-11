@@ -25,8 +25,9 @@ export default function AssignmentModal({
     return new Date(isoString).toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' });
   };
 
-  const isAppointment = func.type === 'appointment' || func.type === 'google_calendar';
-  const isGoogleCalendar = func.source === 'google_calendar' || func.type === 'google_calendar';
+  const isAppointment = func.type === 'appointment' || func.type === 'google_calendar' || func.source === 'google_calendar' || String(func.id).startsWith('app-') || String(func.id).startsWith('gcal-');
+  const isGoogleCalendar = func.source === 'google_calendar' || func.type === 'google_calendar' || String(func.id).startsWith('gcal-');
+  const isInternalShift = !func.projectName || func.type === 'shift' || func.isInternalShift;
   const isDone = isFunctionCompleted(func);
 
   const internalCrew = crew?.internal || [];
@@ -75,7 +76,7 @@ export default function AssignmentModal({
                   }
                 </div>
 
-                {!isAppointment && (
+                {!isAppointment && !isInternalShift && (
                   <span className={`text-xs px-2.5 py-1 rounded-lg font-semibold uppercase tracking-wider border ${statusBadgeClass}`}>
                     {func.statusName || 'Okänd'}
                   </span>
@@ -229,9 +230,15 @@ export default function AssignmentModal({
               <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-4 flex flex-col flex-1 min-h-[220px]">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider">Tilldelade personer</h3>
-                  <div className={`text-xs px-2 py-0.5 rounded-full font-bold border ${isFullyAssigned ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'}`}>
-                    {assignedCount} / {requiredAmount} st
-                  </div>
+                  {!isAppointment ? (
+                    <div className={`text-xs px-2 py-0.5 rounded-full font-bold border ${isFullyAssigned ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'}`}>
+                      {assignedCount} / {requiredAmount} st
+                    </div>
+                  ) : (
+                    <div className="text-xs px-2 py-0.5 rounded-full font-bold border bg-blue-500/20 text-blue-300 border-blue-500/30">
+                      {assignedCount} st
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex-1 space-y-2 overflow-y-auto max-h-[240px] md:max-h-[300px] custom-scrollbar pr-1">

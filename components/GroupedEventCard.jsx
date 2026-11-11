@@ -65,7 +65,9 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
             return parts[0].substring(0, 2).toUpperCase();
           }).join(', ') || 'Ingen';
 
-          const projStatusClass = getStatusBadgeStyle(func.statusName);
+          const isInternalShift = !func.projectName || func.type === 'shift' || func.isInternalShift;
+          const displayStatus = isInternalShift ? null : (func.statusName || 'Okänd');
+          const projStatusClass = getStatusBadgeStyle(displayStatus);
           const isDone = isFunctionCompleted(func);
 
           const itemStyleClass = isDone
@@ -102,12 +104,14 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
               {/* Row 2: Status, Vehicle and Assignee info */}
               <div className="flex justify-between items-center w-full pt-1 border-t border-white/5 gap-1">
                 <div className="flex items-center gap-1 min-w-0">
-                  <span className={`text-[9px] px-1.5 py-0.2 rounded-full border ${projStatusClass} font-semibold uppercase tracking-wider shrink-0`}>
-                    {func.statusName || 'Okänd'}
-                  </span>
+                  {displayStatus && (
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded-full border ${projStatusClass} font-semibold uppercase tracking-wider shrink-0`}>
+                      {displayStatus}
+                    </span>
+                  )}
                   {func.vehicleNames && func.vehicleNames.length > 0 && (
                     <span 
-                      className="text-[9px] px-1.5 py-0.2 rounded-full border bg-white/10 text-white/80 border-white/20 font-medium truncate max-w-[70px]" 
+                      className="text-[9px] px-1.5 py-0.2 rounded-full border bg-white/10 text-white/80 border-white/20 font-medium truncate max-w-[150px]" 
                       title={func.vehicleNames.join(', ')}
                     >
                       🚚 {func.vehicleNames.join(', ')}

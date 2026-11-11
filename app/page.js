@@ -146,16 +146,16 @@ function getRefreshInterval() {
 
   // Tuesday afternoon meeting (13:00-17:00)
   if (day === 2 && hour >= 13 && hour < 17) {
-    return 60 * 1000; // 1 minute
+    return 45 * 1000; // 45 seconds
   }
 
   // Weekday office hours (07:00-18:00)
   if (day >= 1 && day <= 5 && hour >= 7 && hour < 18) {
-    return 5 * 60 * 1000; // 5 minutes
+    return 60 * 1000; // 1 minute (auto-sync with Google Calendar & Rentman)
   }
 
   // Off-hours & weekends
-  return 15 * 60 * 1000; // 15 minutes
+  return 3 * 60 * 1000; // 3 minutes
 }
 
 // --- Helper: Check if screensaver should be active ---
@@ -560,10 +560,40 @@ export default function Dashboard() {
 
   // Cache of fetched weeks: weekStr -> { data, timestamp }
   const weekCacheRef = useRef(new Map());
-  const CLIENT_WEEK_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+  const CLIENT_WEEK_CACHE_TTL = 45 * 1000; // 45 seconds (ensures fresh calendar & Rentman updates)
   const currentOffsetRef = useRef(state.weekOffset);
   currentOffsetRef.current = state.weekOffset;
   const prefetchTimerRef = useRef(null);
+
+  // Background auto-sync to Google Calendar
+  const isSyncingCalendarRef = useRef(false);
+  const lastCalendarSyncTimeRef = useRef(0);
+
+  const triggerAutoCalendarSync = useCallback(async (functionsToSync, force = false) => {
+    const now = Date.now();
+    // Throttle automatic periodic syncs to at most once every 45 seconds unless forced
+    if (!force && (now - lastCalendarSyncTimeRef.current < 45 * 1000)) {
+      return;
+    }
+    if (isSyncingCalendarRef.current) return;
+
+    try {
+      isSyncingCalendarRef.current = true;
+      lastCalendarSyncTimeRef.current = now;
+      await fetch('/api/calendar/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: 'sync',
+          functions: Array.isArray(functionsToSync) && functionsToSync.length > 0 ? functionsToSync : undefined
+        }),
+      });
+    } catch (e) {
+      console.warn('Auto calendar sync error:', e?.message);
+    } finally {
+      isSyncingCalendarRef.current = false;
+    }
+  }, []);
 
   // Gentle, idle-only prefetch of adjacent weeks to avoid saturating Rentman API
   const scheduleIdlePrefetch = useCallback((baseOffset) => {
@@ -634,13 +664,17 @@ export default function Dashboard() {
       weekCacheRef.current.set(weekStr, { data, timestamp: Date.now() });
       dispatch({ type: 'FETCH_SUCCESS', payload: data });
       setRetryCountdown(null);
+      // Auto-sync current week to Google Calendar in background (fire-and-forget)
+      if (state.weekOffset === 0 && Array.isArray(data.functions) && data.functions.length > 0) {
+        triggerAutoCalendarSync(data.functions, false);
+      }
       // Gentle idle prefetch
       scheduleIdlePrefetch(state.weekOffset);
     } catch (err) {
       console.error('Failed to fetch schedule:', err);
       dispatch({ type: 'FETCH_ERROR', payload: err.message });
     }
-  }, [state.weekOffset, scheduleIdlePrefetch]);
+  }, [state.weekOffset, scheduleIdlePrefetch, triggerAutoCalendarSync]);
 
   // Automatic retry timer on error (retries every 10 seconds)
   useEffect(() => {
@@ -925,12 +959,13 @@ export default function Dashboard() {
       setIsMeetingModalOpen(false);
       setEditingMeeting(null);
       weekCacheRef.current.clear();
-      fetchData(true);
+      await fetchData(true);
+      triggerAutoCalendarSync(null, true);
     } catch (err) {
       console.error(err);
       alert(`Misslyckades att ${meetingData.id ? 'ändra' : 'boka'} mötet: ${err.message}`);
     }
-  }, [fetchData]);
+  }, [fetchData, triggerAutoCalendarSync]);
 
   const handleDeleteMeeting = useCallback(async (meetingId) => {
     try {
@@ -942,12 +977,13 @@ export default function Dashboard() {
       setIsMeetingModalOpen(false);
       setEditingMeeting(null);
       weekCacheRef.current.clear();
-      fetchData(true);
+      await fetchData(true);
+      triggerAutoCalendarSync(null, true);
     } catch (err) {
       console.error(err);
       alert('Misslyckades att ta bort mötet.');
     }
-  }, [fetchData]);
+  }, [fetchData, triggerAutoCalendarSync]);
 
   // Handle crew assignment
   const handleAssign = useCallback(async (crewId) => {
@@ -989,12 +1025,13 @@ export default function Dashboard() {
       if (!res.ok) throw new Error('Assignment failed');
       // Refresh to get real IDs
       weekCacheRef.current.clear();
-      fetchData(true);
+      await fetchData(true);
+      triggerAutoCalendarSync(null, true);
     } catch (err) {
       console.error('Failed to assign crew:', err);
       fetchData(true); // Revert optimistic update
     }
-  }, [state.selectedFunction, state.crew, fetchData]);
+  }, [state.selectedFunction, state.crew, fetchData, triggerAutoCalendarSync]);
 
   // Handle crew unassignment
   const handleUnassign = useCallback(async (projectCrewId, isAppointment = false, functionId = null, crewId = null) => {
@@ -1016,12 +1053,13 @@ export default function Dashboard() {
       });
       if (!res.ok) throw new Error('Unassignment failed');
       weekCacheRef.current.clear();
-      fetchData(true);
+      await fetchData(true);
+      triggerAutoCalendarSync(null, true);
     } catch (err) {
       console.error('Failed to unassign crew:', err);
       fetchData(true); // Revert
     }
-  }, [state.selectedFunction, fetchData]);
+  }, [state.selectedFunction, fetchData, triggerAutoCalendarSync]);
 
   // Count events for tomorrow (screensaver display)
   const tomorrowEventCount = (() => {

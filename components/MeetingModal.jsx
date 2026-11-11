@@ -71,9 +71,15 @@ export default function MeetingModal({ meeting, crew, onClose, onSave, onDelete 
     if (!name.trim() || !isoDate || !startTime || !endTime) return;
     setIsSaving(true);
 
-    const offset = getLocalIsoOffset(new Date(isoDate));
-    const startStr = `${isoDate}T${startTime}:00${offset}`;
-    const endStr = `${isoDate}T${endTime}:00${offset}`;
+    const [startH, startM] = startTime.split(':').map(Number);
+    const [endH, endM] = endTime.split(':').map(Number);
+    const [y, m, d] = isoDate.split('-').map(Number);
+
+    const startDate = new Date(y, (m || 1) - 1, d || 1, startH || 0, startM || 0, 0);
+    const endDate = new Date(y, (m || 1) - 1, d || 1, endH || 0, endM || 0, 0);
+
+    const startStr = !isNaN(startDate.getTime()) ? startDate.toISOString() : `${isoDate}T${startTime}:00Z`;
+    const endStr = !isNaN(endDate.getTime()) ? endDate.toISOString() : `${isoDate}T${endTime}:00Z`;
 
     await onSave({
       id: meeting?.realId || meeting?.id,

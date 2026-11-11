@@ -14,15 +14,13 @@ export default function EventCard({ func, onClick }) {
     return parts[0].substring(0, 2).toUpperCase();
   }).join(', ') || 'Ingen';
 
-  const isInternalShift = !func.projectName && func.type === 'shift';
-  const isAppointment = func.type === 'appointment' || func.type === 'google_calendar';
+  const isInternalShift = !func.projectName || func.type === 'shift' || func.isInternalShift;
+  const isAppointment = func.type === 'appointment' || func.type === 'google_calendar' || func.source === 'google_calendar' || String(func.id).startsWith('app-') || String(func.id).startsWith('gcal-');
   const isDone = isFunctionCompleted(func);
 
   let displayStatus = null;
-  if (isAppointment) {
+  if (isAppointment || isInternalShift) {
     displayStatus = null;
-  } else if (isInternalShift && (func.statusName === 'Koncept' || !func.statusName)) {
-    displayStatus = 'Skift';
   } else {
     displayStatus = func.statusName || 'Okänd';
   }
@@ -91,8 +89,10 @@ export default function EventCard({ func, onClick }) {
           <div className="text-[10px] shrink-0 px-2 py-0.5 rounded font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30">
             ⚠️ Ej tidsatt
           </div>
+        ) : isAppointment && assignedCount === 0 ? (
+          null
         ) : (
-          <div className={`text-[11px] shrink-0 px-1.5 py-0.5 rounded font-bold tracking-widest ${isFullyAssigned ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10'}`}>
+          <div className={`text-[11px] shrink-0 px-1.5 py-0.5 rounded font-bold tracking-widest ${isFullyAssigned ? 'text-green-400 bg-green-500/10' : (isAppointment ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10')}`}>
             [{initials}]
           </div>
         )}
@@ -107,7 +107,7 @@ export default function EventCard({ func, onClick }) {
             </span>
           )}
           {func.vehicleNames && func.vehicleNames.length > 0 && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full border bg-white/10 text-white/80 border-white/20 font-medium truncate max-w-[80px]" title={func.vehicleNames.join(', ')}>
+            <span className="text-[10px] px-2 py-0.5 rounded-full border bg-white/10 text-white/80 border-white/20 font-medium truncate max-w-[170px]" title={func.vehicleNames.join(', ')}>
               🚚 {func.vehicleNames.join(', ')}
             </span>
           )}
@@ -117,6 +117,8 @@ export default function EventCard({ func, onClick }) {
           <div className="shrink-0 text-[10px] text-amber-300/90 font-medium flex items-center gap-1">
             <span>Kan ej bemannas</span>
           </div>
+        ) : isAppointment ? (
+          null
         ) : (
           <div className={`shrink-0 flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full border ${isFullyAssigned ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>

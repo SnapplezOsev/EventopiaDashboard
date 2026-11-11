@@ -201,15 +201,14 @@ export async function GET(request) {
       const projectColor = formatHexColor(sp.color || project.color, '#14B4EC');
       const vehicles = subprojectVehicles[sp.id] || [];
 
-      const isPackedLocally = Boolean(localData.packedSubprojects[String(sp.id)]?.packed);
-      const isReturnedLocally = Boolean(localData.returnedSubprojects[String(sp.id)]?.returned);
+      const isPackedLocally = Boolean(localData.returnedSubprojects[String(sp.id)]?.returned);
 
       const isPackedStatus = statusLower.includes('pack') || isPackedLocally;
-      const isOnLocationStatus = statusLower.includes('plats');
+      const isOnLocationStatus = statusLower.includes('plats') || statusLower.includes('location') || statusLower.includes('pågående') || statusLower.includes('in progress');
       const isUncheckedStatus = statusLower.includes('ej check') || statusLower.includes('1004') || statusLower.includes('åter på lager');
-      const isConfirmed = statusLower.includes('bekräft');
-      const isProposal = statusLower.includes('förslag');
-      const isReturnedStatus = statusLower.includes('return') || isReturnedLocally;
+      const isConfirmed = statusLower.includes('bekräft') || statusLower.includes('confirm');
+      const isProposal = statusLower.includes('förslag') || statusLower.includes('pend');
+      const isReturnedStatus = statusLower.includes('return') || statusLower.includes('retur') || statusLower.includes('genomför') || statusLower.includes('execution done') || statusLower.includes('avslut') || statusLower.includes('complete') || isReturnedLocally;
 
       if (!isReturnedStatus && equipFromDate) {
         const notPastDeparture = !isPast(equipFromDate) || isToday(equipFromDate);
