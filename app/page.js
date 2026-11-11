@@ -567,9 +567,11 @@ export default function Dashboard() {
 
   // Background auto-sync to Google Calendar
   const isSyncingCalendarRef = useRef(false);
+  const isCalendarConfiguredRef = useRef(true);
   const lastCalendarSyncTimeRef = useRef(0);
 
   const triggerAutoCalendarSync = useCallback(async (functionsToSync, force = false) => {
+    if (!isCalendarConfiguredRef.current && !force) return;
     const now = Date.now();
     // Throttle automatic periodic syncs to at most once every 45 seconds unless forced
     if (!force && (now - lastCalendarSyncTimeRef.current < 45 * 1000)) {
@@ -580,7 +582,7 @@ export default function Dashboard() {
     try {
       isSyncingCalendarRef.current = true;
       lastCalendarSyncTimeRef.current = now;
-      await fetch('/api/calendar/sync', {
+      const res = await fetch('/api/calendar/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -588,6 +590,14 @@ export default function Dashboard() {
           functions: Array.isArray(functionsToSync) && functionsToSync.length > 0 ? functionsToSync : undefined
         }),
       });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.notConfigured) {
+          isCalendarConfiguredRef.current = false;
+        } else if (data.success) {
+          isCalendarConfiguredRef.current = true;
+        }
+      }
     } catch (e) {
       console.warn('Auto calendar sync error:', e?.message);
     } finally {

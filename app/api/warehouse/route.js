@@ -201,7 +201,8 @@ export async function GET(request) {
       const projectColor = formatHexColor(sp.color || project.color, '#14B4EC');
       const vehicles = subprojectVehicles[sp.id] || [];
 
-      const isPackedLocally = Boolean(localData.returnedSubprojects[String(sp.id)]?.returned);
+      const isPackedLocally = Boolean(localData.packedSubprojects[String(sp.id)]?.packed);
+      const isReturnedLocally = Boolean(localData.returnedSubprojects[String(sp.id)]?.returned);
 
       const isPackedStatus = statusLower.includes('pack') || isPackedLocally;
       const isOnLocationStatus = statusLower.includes('plats') || statusLower.includes('location') || statusLower.includes('pågående') || statusLower.includes('in progress');

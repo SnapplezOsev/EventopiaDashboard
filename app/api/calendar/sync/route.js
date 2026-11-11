@@ -37,9 +37,10 @@ export async function POST(request) {
     if (!config.isConfigured) {
       return NextResponse.json({
         success: false,
+        notConfigured: true,
         error: 'Google Kalender är inte konfigurerad än. Ange Kalender-ID och lägg till service-kontots nyckelfil.',
         config,
-      }, { status: 400 });
+      }, { status: 200 });
     }
 
     // Get functions to sync (either passed in body or fetched from /api/schedule)
