@@ -45,6 +45,7 @@ export async function POST(request) {
 
     // Get functions to sync (either passed in body or fetched from /api/schedule)
     let functions = body.functions;
+    let canceledFunctions = body.canceledFunctions || [];
     if (!Array.isArray(functions) || functions.length === 0) {
       const port = process.env.PORT || 3000;
       const baseUrl = process.env.NEXTAUTH_URL || `http://127.0.0.1:${port}`;
@@ -53,6 +54,9 @@ export async function POST(request) {
         if (schedRes.ok) {
           const schedData = await schedRes.json();
           functions = schedData.functions || [];
+          if (!canceledFunctions.length) {
+            canceledFunctions = schedData.canceledFunctions || [];
+          }
         }
       } catch (err) {
         console.warn('Could not self-fetch schedule for calendar sync:', err.message);
@@ -66,7 +70,7 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    const result = await syncScheduleToGoogle(functions);
+    const result = await syncScheduleToGoogle(functions, { canceledFunctions });
     return NextResponse.json({ success: true, result });
   } catch (err) {
     console.error('Calendar sync API error:', err);

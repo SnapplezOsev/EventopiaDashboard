@@ -278,6 +278,7 @@ export async function GET(request) {
 
     const functions = [];
     const unscheduledFunctions = [];
+    const canceledFunctions = [];
     const processedSubprojects = new Set();
     const processedProjects = new Set();
     const localAssignments = getLocalAssignments();
@@ -428,7 +429,17 @@ export async function GET(request) {
       const isCanceled = statusName.toLowerCase().includes('cancel') || 
                          statusName.toLowerCase().includes('annuller') || 
                          statusName.toLowerCase().includes('avbokad');
-      if (isCanceled) continue;
+      if (isCanceled) {
+        canceledFunctions.push({
+          id: fn.id,
+          name: fn.name,
+          functionGroupId: functionGroupId || null,
+          functionGroupName: functionGroupName || null,
+          planperiod_start: planStart,
+          planperiod_end: planEnd || planStart
+        });
+        continue;
+      }
 
       // Customer & Location
       const customerId = extractId(project.customer) || extractId(subproject?.customer);
@@ -805,6 +816,7 @@ export async function GET(request) {
       crew: crewResult,
       tasks,
       unscheduledFunctions,
+      canceledFunctions,
       pendingRentmanSync
     };
 

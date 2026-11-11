@@ -591,7 +591,7 @@ export default function Dashboard() {
   const isCalendarConfiguredRef = useRef(true);
   const lastCalendarSyncTimeRef = useRef(0);
 
-  const triggerAutoCalendarSync = useCallback(async (functionsToSync, force = false) => {
+  const triggerAutoCalendarSync = useCallback(async (functionsToSync, force = false, canceledFunctions = undefined) => {
     if (!isCalendarConfiguredRef.current && !force) return;
     const now = Date.now();
     // Throttle automatic periodic syncs to at most once every 45 seconds unless forced
@@ -608,7 +608,8 @@ export default function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           action: 'sync',
-          functions: Array.isArray(functionsToSync) && functionsToSync.length > 0 ? functionsToSync : undefined
+          functions: Array.isArray(functionsToSync) && functionsToSync.length > 0 ? functionsToSync : undefined,
+          canceledFunctions: Array.isArray(canceledFunctions) ? canceledFunctions : undefined
         }),
       });
       if (res.ok) {
@@ -697,7 +698,7 @@ export default function Dashboard() {
       setRetryCountdown(null);
       // Auto-sync current week to Google Calendar in background (fire-and-forget)
       if (state.weekOffset === 0 && Array.isArray(data.functions) && data.functions.length > 0) {
-        triggerAutoCalendarSync(data.functions, false);
+        triggerAutoCalendarSync(data.functions, false, data.canceledFunctions);
       }
       // Gentle idle prefetch
       scheduleIdlePrefetch(state.weekOffset);
