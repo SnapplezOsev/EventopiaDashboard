@@ -1,5 +1,5 @@
 'use client';
-import { getStatusBadgeStyle, formatEventTimeBadge, isFunctionCompleted, shortenLeverans } from '@/lib/statusUtils';
+import { getStatusBadgeStyle, getWarehouseStatusInfo, formatEventTimeBadge, isFunctionCompleted, shortenLeverans } from '@/lib/statusUtils';
 
 export default function GroupedEventCard({ group, onFunctionClick }) {
   const projectColor = group.projectColor?.startsWith('#') 
@@ -68,6 +68,7 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
           const isInternalShift = !func.projectName || func.type === 'shift' || func.isInternalShift;
           const displayStatus = isInternalShift ? null : (func.statusName || 'Okänd');
           const projStatusClass = getStatusBadgeStyle(displayStatus);
+          const warehouseInfo = !isInternalShift ? getWarehouseStatusInfo(func.warehouseStatus) : null;
           const isDone = isFunctionCompleted(func);
 
           const itemStyleClass = isDone
@@ -107,6 +108,14 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
                   {displayStatus && (
                     <span className={`text-[9px] px-1.5 py-0.2 rounded-full border ${projStatusClass} font-semibold uppercase tracking-wider shrink-0`}>
                       {displayStatus}
+                    </span>
+                  )}
+                  {warehouseInfo && (
+                    <span 
+                      className={`text-[9px] px-1 py-0.2 rounded-full border ${warehouseInfo.badgeClass} font-bold shrink-0 flex items-center shadow-sm cursor-help`}
+                      title={`Lagerstatus: ${warehouseInfo.label}`}
+                    >
+                      <span>{warehouseInfo.icon}</span>
                     </span>
                   )}
                   {func.vehicleNames && func.vehicleNames.length > 0 && (

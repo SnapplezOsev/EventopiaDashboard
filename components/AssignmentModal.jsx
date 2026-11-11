@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { getStatusBadgeStyle, formatEventTimeBadge, formatFullDateRange, isFunctionCompleted, shortenLeverans } from '@/lib/statusUtils';
+import { getStatusBadgeStyle, formatEventTimeBadge, formatFullDateRange, isFunctionCompleted, shortenLeverans, getWarehouseStatusInfo } from '@/lib/statusUtils';
 
 export default function AssignmentModal({ 
   func, 
@@ -43,6 +43,7 @@ export default function AssignmentModal({
   const assignedCount = func.assignedCrew?.length || 0;
   const isFullyAssigned = assignedCount >= requiredAmount;
   const statusBadgeClass = getStatusBadgeStyle(func.statusName);
+  const warehouseInfo = !isAppointment && !isInternalShift ? getWarehouseStatusInfo(func.warehouseStatus) : null;
 
   return (
     <div 
@@ -77,9 +78,23 @@ export default function AssignmentModal({
                 </div>
 
                 {!isAppointment && !isInternalShift && (
-                  <span className={`text-xs px-2.5 py-1 rounded-lg font-semibold uppercase tracking-wider border ${statusBadgeClass}`}>
-                    {func.statusName || 'Okänd'}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span 
+                      className={`text-xs px-2.5 py-1 rounded-lg font-semibold uppercase tracking-wider border ${statusBadgeClass}`}
+                      title="Projektstatus i Rentman"
+                    >
+                      {func.statusName || 'Okänd'}
+                    </span>
+                    {warehouseInfo && (
+                      <span 
+                        className={`text-xs px-2.5 py-1 rounded-lg font-semibold uppercase tracking-wider border ${warehouseInfo.badgeClass} flex items-center gap-1.5 shadow-sm`}
+                        title="Lagerstatus / Godshantering"
+                      >
+                        <span>{warehouseInfo.icon}</span>
+                        <span>Lager: {warehouseInfo.label}</span>
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
               <h2 className="text-2xl md:text-3xl font-bold text-white leading-tight truncate">{shortenLeverans(func.name)}</h2>
@@ -214,6 +229,21 @@ export default function AssignmentModal({
                     <div className="min-w-0">
                       <p className="text-[10px] uppercase tracking-wider font-bold text-white/40">Fordon</p>
                       <p className="text-white font-medium truncate text-xs">{func.vehicleNames.join(', ')}</p>
+                    </div>
+                  </div>
+                )}
+
+                {!isAppointment && !isInternalShift && warehouseInfo && (
+                  <div className="col-span-2 bg-white/[0.03] p-3 rounded-xl border border-white/5 flex gap-2.5 items-center">
+                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center shrink-0 text-sm">
+                      {warehouseInfo.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-white/40">Lagerstatus (Rentman)</p>
+                      <p className="text-white font-medium truncate text-xs flex items-center gap-1.5">
+                        <span className={`inline-block w-2 h-2 rounded-full ${warehouseInfo.dotClass}`} />
+                        <span>{warehouseInfo.label}</span>
+                      </p>
                     </div>
                   </div>
                 )}

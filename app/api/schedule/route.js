@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { fetchRentman, extractId } from '@/lib/rentman';
 import { getLocalAssignments, removeLocalAssignment } from '@/lib/localAssignments';
+import { getWarehouseData } from '@/lib/localWarehouse';
 import { parseWeekString } from '@/lib/weekUtils';
 import { getCachedSchedule, setCachedSchedule } from '@/lib/scheduleCache';
 import { getGoogleCalendarEvents } from '@/lib/googleCalendar';
@@ -217,8 +218,9 @@ export async function GET(request) {
     for (const st of allProjectStatuses) {
       projectStatusMap[st.id] = st.displayname || st.name;
     }
+    const generalStatusMap = {};
     for (const st of allStatuses) {
-      projectStatusMap[st.id] = st.displayname || st.name;
+      generalStatusMap[st.id] = st.displayname || st.name;
     }
 
     const contactMap = {};
@@ -279,6 +281,7 @@ export async function GET(request) {
     const processedSubprojects = new Set();
     const processedProjects = new Set();
     const localAssignments = getLocalAssignments();
+    const localWarehouse = getWarehouseData();
 
     // 1. Process Project Functions (Functions belong to Subprojects, which link to Projects)
     for (const fn of allProjFunctions) {
@@ -356,12 +359,72 @@ export async function GET(request) {
       if (subprojectId) processedSubprojects.add(subprojectId);
       if (projectId) processedProjects.add(projectId);
 
-      // Status check
-      let statusName = 'Koncept';
-      const statusId = extractId(subproject?.status) || extractId(project?.status);
-      if (statusId) {
-        statusName = projectStatusMap[statusId] || 'Koncept';
+      // Status check (Project Status vs Warehouse Status)
+      const rawProjStatusId = extractId(project?.status);
+      const rawSpStatusId = extractId(subproject?.status);
+
+      const spRawStatus = rawSpStatusId ? (generalStatusMap[rawSpStatusId] || projectStatusMap[rawSpStatusId]) : '';
+      const projRawStatus = rawProjStatusId ? (projectStatusMap[rawProjStatusId] || generalStatusMap[rawProjStatusId]) : '';
+
+      let statusName = projRawStatus || spRawStatus || 'Koncept';
+
+      // Warehouse / Equipment status
+      let warehouseStatus = null;
+      const spIdStr = String(subprojectId);
+      const isReturnedLocally = Boolean(localWarehouse?.returnedSubprojects?.[spIdStr]?.returned);
+      const isPackedLocally = Boolean(localWarehouse?.packedSubprojects?.[spIdStr]?.packed);
+
+      if (isReturnedLocally) {
+        warehouseStatus = 'Returnerad';
+      } else if (isPackedLocally) {
+        warehouseStatus = 'Packade';
+      } else if (subproject?.equipment_status_quantities) {
+        try {
+          const q = typeof subproject.equipment_status_quantities === 'string'
+            ? JSON.parse(subproject.equipment_status_quantities)
+            : subproject.equipment_status_quantities;
+          if (q && typeof q === 'object') {
+            if (Number(q['5']) > 0) {
+              warehouseStatus = 'På plats';
+            } else if (Number(q['4']) > 0) {
+              warehouseStatus = 'Packade';
+            } else if (Number(q['1004']) > 0) {
+              warehouseStatus = 'Åter på lager / Ej checkade';
+            } else if (Number(q['6']) > 0) {
+              warehouseStatus = 'Returnerad';
+            }
+          }
+        } catch {
+          // Ignore json parse error
+        }
       }
+
+      if (!warehouseStatus && spRawStatus) {
+        const s = spRawStatus.toLowerCase();
+        if (s.includes('pack')) {
+          warehouseStatus = 'Packade';
+        } else if (s.includes('plats') || s.includes('location')) {
+          warehouseStatus = 'På plats';
+        } else if (s.includes('retur') || s.includes('return')) {
+          warehouseStatus = 'Returnerad';
+        } else if (s.includes('ej check') || s.includes('1004') || s.includes('åter på lager')) {
+          warehouseStatus = 'Åter på lager / Ej checkade';
+        }
+      }
+
+      if (!warehouseStatus && projRawStatus) {
+        const s = projRawStatus.toLowerCase();
+        if (s.includes('pack')) {
+          warehouseStatus = 'Packade';
+        } else if (s.includes('plats') || s.includes('location')) {
+          warehouseStatus = 'På plats';
+        } else if (s.includes('retur') || s.includes('return')) {
+          warehouseStatus = 'Returnerad';
+        } else if (s.includes('ej check') || s.includes('1004') || s.includes('åter på lager')) {
+          warehouseStatus = 'Åter på lager / Ej checkade';
+        }
+      }
+
       const isCanceled = statusName.toLowerCase().includes('cancel') || 
                          statusName.toLowerCase().includes('annuller') || 
                          statusName.toLowerCase().includes('avbokad');
@@ -462,6 +525,7 @@ export async function GET(request) {
         customerName: rawProjName ? customerName : '',
         locationName: rawProjName ? locationName : '',
         statusName: isInternalShift ? '' : statusName,
+        warehouseStatus: isInternalShift ? null : warehouseStatus,
         vehicleNames,
         amount: fn.amount || 1,
         subprojectId: subprojectId || projectId,

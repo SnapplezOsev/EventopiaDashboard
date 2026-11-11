@@ -1,4 +1,4 @@
-import { getStatusBadgeStyle, formatEventTimeBadge, isFunctionCompleted, shortenLeverans } from '@/lib/statusUtils';
+import { getStatusBadgeStyle, getWarehouseStatusInfo, formatEventTimeBadge, isFunctionCompleted, shortenLeverans } from '@/lib/statusUtils';
 
 export default function EventCard({ func, onClick }) {
   const requiredAmount = func.amount || 1;
@@ -26,6 +26,7 @@ export default function EventCard({ func, onClick }) {
   }
 
   const projStatusClass = getStatusBadgeStyle(displayStatus);
+  const warehouseInfo = !isAppointment && !isInternalShift ? getWarehouseStatusInfo(func.warehouseStatus) : null;
 
   const cardStyleClass = isDone
     ? 'opacity-50 hover:opacity-100 grayscale-[0.5] hover:grayscale-0 bg-white/[0.02] border border-white/5 hover:border-white/20'
@@ -104,6 +105,14 @@ export default function EventCard({ func, onClick }) {
           {displayStatus && (
             <span className={`text-[10px] px-2 py-0.5 rounded-full border ${projStatusClass} font-semibold uppercase tracking-wider shrink-0`}>
               {displayStatus}
+            </span>
+          )}
+          {warehouseInfo && (
+            <span 
+              className={`text-[10px] px-1.5 py-0.5 rounded-full border ${warehouseInfo.badgeClass} font-bold shrink-0 flex items-center shadow-sm cursor-help`}
+              title={`Lagerstatus: ${warehouseInfo.label}`}
+            >
+              <span>{warehouseInfo.icon}</span>
             </span>
           )}
           {func.vehicleNames && func.vehicleNames.length > 0 && (
