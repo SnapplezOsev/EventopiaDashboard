@@ -1,7 +1,84 @@
 'use client';
+import { memo, useRef, useState, useEffect } from 'react';
 import { getStatusBadgeStyle, getWarehouseStatusInfo, formatEventTimeBadge, isFunctionCompleted, shortenLeverans } from '@/lib/statusUtils';
 
-export default function GroupedEventCard({ group, onFunctionClick }) {
+function areGroupedPropsEqual(prevProps, nextProps) {
+  if (prevProps.onFunctionClick !== nextProps.onFunctionClick) return false;
+  const pg = prevProps.group;
+  const ng = nextProps.group;
+  if (pg === ng) return true;
+  if (!pg || !ng) return false;
+
+  if (pg.groupId !== ng.groupId) return false;
+  if (pg.groupName !== ng.groupName) return false;
+  if (pg.projectId !== ng.projectId) return false;
+  if (pg.projectName !== ng.projectName) return false;
+  if (pg.customerName !== ng.customerName) return false;
+  if (pg.projectColor !== ng.projectColor) return false;
+
+  const pFuncs = pg.functions || [];
+  const nFuncs = ng.functions || [];
+  if (pFuncs.length !== nFuncs.length) return false;
+
+  for (let i = 0; i < pFuncs.length; i++) {
+    const pf = pFuncs[i];
+    const nf = nFuncs[i];
+    if (
+      pf.id !== nf.id ||
+      pf.name !== nf.name ||
+      pf.planperiod_start !== nf.planperiod_start ||
+      pf.planperiod_end !== nf.planperiod_end ||
+      pf.statusName !== nf.statusName ||
+      pf.warehouseStatus !== nf.warehouseStatus ||
+      pf.amount !== nf.amount
+    ) {
+      return false;
+    }
+    const pCrew = pf.assignedCrew || [];
+    const nCrew = nf.assignedCrew || [];
+    if (pCrew.length !== nCrew.length) return false;
+    for (let c = 0; c < pCrew.length; c++) {
+      if (
+        pCrew[c].projectCrewId !== nCrew[c].projectCrewId ||
+        pCrew[c].crewId !== nCrew[c].crewId ||
+        pCrew[c].name !== nCrew[c].name
+      ) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function GroupedEventCard({ group, onFunctionClick }) {
+  const isFirstMountRef = useRef(true);
+  const prevGroupRef = useRef(group);
+  const [justUpdated, setJustUpdated] = useState(false);
+
+  useEffect(() => {
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      prevGroupRef.current = group;
+      return;
+    }
+
+    const prev = prevGroupRef.current;
+    const funcsChanged = JSON.stringify(prev?.functions?.map(f => ({ c: f.assignedCrew, s: f.statusName }))) !==
+      JSON.stringify(group?.functions?.map(f => ({ c: f.assignedCrew, s: f.statusName })));
+
+    if (funcsChanged) {
+      const updateTimer = setTimeout(() => setJustUpdated(true), 0);
+      const clearTimer = setTimeout(() => setJustUpdated(false), 2400);
+      prevGroupRef.current = group;
+      return () => {
+        clearTimeout(updateTimer);
+        clearTimeout(clearTimer);
+      };
+    }
+    prevGroupRef.current = group;
+  }, [group]);
+
   const projectColor = group.projectColor?.startsWith('#') 
     ? group.projectColor 
     : (group.projectColor ? `#${group.projectColor}` : '#14B4EC');
@@ -18,7 +95,7 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
     <div 
       className={`bg-white/[0.04] hover:bg-white/[0.06] border border-white/10 rounded-2xl p-2.5 flex flex-col gap-2 transition-all shadow-md relative overflow-hidden ${
         isAllGroupDone ? 'opacity-65 hover:opacity-100' : ''
-      }`}
+      } ${justUpdated ? 'card-updated' : ''}`}
     >
       {/* Group Header: Project name & Function group pill */}
       <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-white/10">
@@ -152,3 +229,5 @@ export default function GroupedEventCard({ group, onFunctionClick }) {
     </div>
   );
 }
+
+export default memo(GroupedEventCard, areGroupedPropsEqual);

@@ -1,6 +1,89 @@
+'use client';
+import { memo, useRef, useState, useEffect, useCallback } from 'react';
 import { getStatusBadgeStyle, getWarehouseStatusInfo, formatEventTimeBadge, isFunctionCompleted, shortenLeverans } from '@/lib/statusUtils';
 
-export default function EventCard({ func, onClick }) {
+function areEventCardPropsEqual(prevProps, nextProps) {
+  if (prevProps.onClick !== nextProps.onClick) return false;
+  if (prevProps.onCardClick !== nextProps.onCardClick) return false;
+
+  const pf = prevProps.func;
+  const nf = nextProps.func;
+  if (pf === nf) return true;
+  if (!pf || !nf) return false;
+
+  if (pf.id !== nf.id) return false;
+  if (pf.name !== nf.name) return false;
+  if (pf.planperiod_start !== nf.planperiod_start) return false;
+  if (pf.planperiod_end !== nf.planperiod_end) return false;
+  if (pf.statusName !== nf.statusName) return false;
+  if (pf.warehouseStatus !== nf.warehouseStatus) return false;
+  if (pf.amount !== nf.amount) return false;
+  if (pf.isUnscheduled !== nf.isUnscheduled) return false;
+  if (pf.customerName !== nf.customerName) return false;
+  if (pf.projectName !== nf.projectName) return false;
+  if (pf.projectColor !== nf.projectColor) return false;
+  if (pf.functionGroupName !== nf.functionGroupName) return false;
+
+  const pVehicles = pf.vehicleNames || [];
+  const nVehicles = nf.vehicleNames || [];
+  if (pVehicles.length !== nVehicles.length) return false;
+  for (let i = 0; i < pVehicles.length; i++) {
+    if (pVehicles[i] !== nVehicles[i]) return false;
+  }
+
+  const pCrew = pf.assignedCrew || [];
+  const nCrew = nf.assignedCrew || [];
+  if (pCrew.length !== nCrew.length) return false;
+  for (let i = 0; i < pCrew.length; i++) {
+    if (
+      pCrew[i].projectCrewId !== nCrew[i].projectCrewId ||
+      pCrew[i].crewId !== nCrew[i].crewId ||
+      pCrew[i].name !== nCrew[i].name
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function EventCard({ func, onClick, onCardClick }) {
+  const isFirstMountRef = useRef(true);
+  const prevFuncRef = useRef(func);
+  const [justUpdated, setJustUpdated] = useState(false);
+
+  useEffect(() => {
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      prevFuncRef.current = func;
+      return;
+    }
+
+    const prev = prevFuncRef.current;
+    const crewChanged = JSON.stringify(prev?.assignedCrew) !== JSON.stringify(func?.assignedCrew);
+    const statusChanged = prev?.statusName !== func?.statusName || prev?.warehouseStatus !== func?.warehouseStatus;
+    const timeChanged = prev?.planperiod_start !== func?.planperiod_start || prev?.planperiod_end !== func?.planperiod_end;
+
+    if (crewChanged || statusChanged || timeChanged) {
+      const updateTimer = setTimeout(() => setJustUpdated(true), 0);
+      const clearTimer = setTimeout(() => setJustUpdated(false), 2400);
+      prevFuncRef.current = func;
+      return () => {
+        clearTimeout(updateTimer);
+        clearTimeout(clearTimer);
+      };
+    }
+    prevFuncRef.current = func;
+  }, [func]);
+
+  const handleClick = useCallback((e) => {
+    if (onCardClick) {
+      onCardClick(func);
+    } else if (onClick) {
+      onClick(e);
+    }
+  }, [onCardClick, onClick, func]);
+
   const requiredAmount = func.amount || 1;
   const assignedCount = func.assignedCrew?.length || 0;
   const isFullyAssigned = assignedCount >= requiredAmount;
@@ -42,8 +125,8 @@ export default function EventCard({ func, onClick }) {
 
   return (
     <div 
-      onClick={onClick}
-      className={`relative active:scale-[0.97] transition-all rounded-xl p-2 cursor-pointer group shadow-sm flex flex-col gap-1.5 ${cardStyleClass}`}
+      onClick={handleClick}
+      className={`relative active:scale-[0.97] transition-all rounded-xl p-2 cursor-pointer group shadow-sm flex flex-col gap-1.5 ${cardStyleClass} ${justUpdated ? 'card-updated' : ''}`}
     >
       {/* Row 1: Time and Function */}
       <div className="flex justify-between items-center w-full">
@@ -138,3 +221,5 @@ export default function EventCard({ func, onClick }) {
     </div>
   );
 }
+
+export default memo(EventCard, areEventCardPropsEqual);

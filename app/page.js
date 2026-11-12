@@ -22,6 +22,7 @@ const initialState = {
   weekStart: null,
   weekEnd: null,
   isLoading: true,
+  isBackgroundSyncing: false,
   error: null,
   selectedFunction: null,
   selectedTask: null,
@@ -32,12 +33,21 @@ const initialState = {
 
 function dashboardReducer(state, action) {
   switch (action.type) {
-    case 'FETCH_START':
-      return { ...state, isLoading: true, error: null };
+    case 'FETCH_START': {
+      const isSilent = Boolean(action.payload?.silent);
+      return {
+        ...state,
+        // Only trigger full skeleton loading if we genuinely have no functions loaded yet
+        isLoading: isSilent ? false : (state.functions.length === 0),
+        isBackgroundSyncing: isSilent,
+        error: null,
+      };
+    }
     case 'FETCH_SUCCESS':
       return {
         ...state,
         isLoading: false,
+        isBackgroundSyncing: false,
         functions: action.payload.functions || [],
         unscheduledFunctions: action.payload.unscheduledFunctions || [],
         crew: action.payload.crew || { internal: [], freelancers: [] },
@@ -47,7 +57,7 @@ function dashboardReducer(state, action) {
         pendingRentmanSync: action.payload.pendingRentmanSync || [],
       };
     case 'FETCH_ERROR':
-      return { ...state, isLoading: false, error: action.payload };
+      return { ...state, isLoading: false, isBackgroundSyncing: false, error: action.payload };
     case 'SELECT_FUNCTION':
       return { ...state, selectedFunction: action.payload };
     case 'CLOSE_MODAL':
@@ -63,6 +73,7 @@ function dashboardReducer(state, action) {
           ...state,
           weekOffset: offset,
           isLoading: false,
+          isBackgroundSyncing: false,
           error: null,
           functions: cachedData.functions || [],
           unscheduledFunctions: cachedData.unscheduledFunctions || [],
@@ -77,6 +88,7 @@ function dashboardReducer(state, action) {
         ...state,
         weekOffset: offset,
         isLoading: true,
+        isBackgroundSyncing: false,
         error: null,
         functions: [],
         unscheduledFunctions: [],
@@ -674,7 +686,7 @@ export default function Dashboard() {
   }, []);
 
   // Fetch data with client-side cache and optional forceRefresh
-  const fetchData = useCallback(async (forceRefresh = false) => {
+  const fetchData = useCallback(async (forceRefresh = false, silent = false) => {
     const { weekStr } = getWeekDetails(state.weekOffset);
 
     // If not forcing refresh, check client cache first
@@ -688,7 +700,7 @@ export default function Dashboard() {
       }
     }
 
-    dispatch({ type: 'FETCH_START' });
+    dispatch({ type: 'FETCH_START', payload: { silent } });
     try {
       const res = await fetch(`/api/schedule?week=${weekStr}${forceRefresh ? '&refresh=true' : ''}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -787,7 +799,7 @@ export default function Dashboard() {
     const setupInterval = () => {
       const interval = getRefreshInterval();
       intervalId = setInterval(() => {
-        fetchData();
+        fetchData(true, true);
         // Recalculate interval in case time-of-day changed
         clearInterval(intervalId);
         setupInterval();
@@ -1144,7 +1156,7 @@ export default function Dashboard() {
         onWeekChange={handleWeekChange}
         onResetWeek={handleResetWeek}
         isCurrentWeek={state.weekOffset === 0}
-        isWeekLoading={state.isLoading}
+        isWeekLoading={state.isLoading || state.isBackgroundSyncing}
         onCreateMeeting={() => setIsMeetingModalOpen(true)}
         pendingSyncCount={state.pendingRentmanSync?.length || 0}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}

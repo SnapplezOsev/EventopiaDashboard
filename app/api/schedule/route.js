@@ -379,11 +379,12 @@ export async function GET(request) {
         warehouseStatus = 'Returnerad';
       } else if (isPackedLocally) {
         warehouseStatus = 'Packade';
-      } else if (subproject?.equipment_status_quantities) {
+      } else if (subproject?.equipment_status_quantities || project?.equipment_status_quantities) {
         try {
-          const q = typeof subproject.equipment_status_quantities === 'string'
-            ? JSON.parse(subproject.equipment_status_quantities)
-            : subproject.equipment_status_quantities;
+          const eqRaw = subproject?.equipment_status_quantities || project?.equipment_status_quantities;
+          const q = typeof eqRaw === 'string'
+            ? JSON.parse(eqRaw)
+            : eqRaw;
           if (q && typeof q === 'object') {
             if (Number(q['5']) > 0) {
               warehouseStatus = 'På plats';
@@ -397,6 +398,14 @@ export async function GET(request) {
           }
         } catch {
           // Ignore json parse error
+        }
+      }
+
+      // If status is Execution done or Rundad, Rentman guarantees equipment is returned
+      if (!warehouseStatus) {
+        const lowerStatus = statusName.toLowerCase();
+        if (lowerStatus.includes('execution done') || lowerStatus.includes('rundad')) {
+          warehouseStatus = 'Returnerad';
         }
       }
 

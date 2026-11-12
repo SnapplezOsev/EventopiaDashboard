@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useLayoutEffect } from 'react';
 import EventCard from '@/components/EventCard';
 import GroupedEventCard from '@/components/GroupedEventCard';
 
@@ -87,6 +87,103 @@ function SkeletonCard({ delay = 0 }) {
         <div className="h-6 w-20 bg-white/10 rounded-full" />
         <div className="h-6 w-16 bg-white/5 rounded-full" />
       </div>
+    </div>
+  );
+}
+
+function AnimatedCardList({ children, weekStart, dayKey }) {
+  const containerRef = useRef(null);
+  const prevPositionsRef = useRef(new Map());
+  const prevWeekRef = useRef(weekStart);
+  const prevDayRef = useRef(dayKey);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Reset positions if week or day changed so we don't animate across different weeks/days
+    if (prevWeekRef.current !== weekStart || prevDayRef.current !== dayKey) {
+      prevWeekRef.current = weekStart;
+      prevDayRef.current = dayKey;
+      prevPositionsRef.current.clear();
+    }
+
+    const currentPositions = new Map();
+    const elements = container.querySelectorAll(':scope > [data-flip-id]');
+
+    elements.forEach((el) => {
+      const id = el.getAttribute('data-flip-id');
+      if (id) {
+        currentPositions.set(id, el.getBoundingClientRect());
+      }
+    });
+
+    const isInitialRender = prevPositionsRef.current.size === 0;
+
+    if (!isInitialRender) {
+      const animatedEls = [];
+
+      elements.forEach((el) => {
+        const id = el.getAttribute('data-flip-id');
+        if (!id) return;
+
+        const oldRect = prevPositionsRef.current.get(id);
+        const newRect = currentPositions.get(id);
+
+        if (oldRect && newRect) {
+          // Existing element: calculate vertical delta
+          const deltaY = oldRect.top - newRect.top;
+          if (Math.abs(deltaY) > 0.5) {
+            el.style.transform = `translate3d(0, ${deltaY}px, 0)`;
+            el.style.transition = 'none';
+            animatedEls.push({ el, type: 'move' });
+          }
+        } else if (!oldRect && newRect) {
+          // Brand new element inserted: pop-in animation
+          el.style.opacity = '0';
+          el.style.transform = 'scale(0.88) translate3d(0, -10px, 0)';
+          el.style.transition = 'none';
+          animatedEls.push({ el, type: 'enter' });
+        }
+      });
+
+      if (animatedEls.length > 0) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            animatedEls.forEach(({ el, type }) => {
+              if (type === 'move') {
+                el.style.transition = 'transform 450ms cubic-bezier(0.16, 1, 0.3, 1)';
+                el.style.transform = 'translate3d(0, 0, 0)';
+              } else if (type === 'enter') {
+                el.classList.add('new-card-highlight');
+                el.style.transition = 'opacity 400ms ease-out, transform 450ms cubic-bezier(0.16, 1, 0.3, 1)';
+                el.style.opacity = '1';
+                el.style.transform = 'scale(1) translate3d(0, 0, 0)';
+              }
+            });
+
+            setTimeout(() => {
+              animatedEls.forEach(({ el, type }) => {
+                el.style.transition = '';
+                el.style.transform = '';
+                if (type === 'enter') {
+                  setTimeout(() => {
+                    el.classList.remove('new-card-highlight');
+                  }, 2500);
+                }
+              });
+            }, 500);
+          });
+        });
+      }
+    }
+
+    prevPositionsRef.current = currentPositions;
+  });
+
+  return (
+    <div ref={containerRef} className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar relative">
+      {children}
     </div>
   );
 }
@@ -208,7 +305,7 @@ export default function WeekGrid({ functions = [], weekStart, onFunctionClick, i
                 </div>
               )}
             </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
+            <AnimatedCardList weekStart={weekStart} dayKey={day.toDateString()}>
               {isLoading ? (
                 <>
                   <SkeletonCard delay={idx * 60} />
@@ -220,26 +317,33 @@ export default function WeekGrid({ functions = [], weekStart, onFunctionClick, i
                   Inga bokningar
                 </div>
               ) : (
-                organizedItems.map((item, i) => {
+                organizedItems.map((item) => {
+                  const flipId = item.type === 'group'
+                    ? `group-${item.projectId || 'p'}-${item.groupId}`
+                    : `func-${item.func.id}`;
+
                   if (item.type === 'group') {
                     return (
-                      <GroupedEventCard
-                        key={`group-${item.groupId}-${i}`}
-                        group={item}
-                        onFunctionClick={onFunctionClick}
-                      />
+                      <div key={flipId} data-flip-id={flipId}>
+                        <GroupedEventCard
+                          group={item}
+                          onFunctionClick={onFunctionClick}
+                        />
+                      </div>
                     );
                   }
                   return (
-                    <EventCard
-                      key={item.func.id}
-                      func={item.func}
-                      onClick={() => onFunctionClick(item.func)}
-                    />
+                    <div key={flipId} data-flip-id={flipId}>
+                      <EventCard
+                        func={item.func}
+                        onCardClick={onFunctionClick}
+                        onClick={() => onFunctionClick(item.func)}
+                      />
+                    </div>
                   );
                 })
               )}
-            </div>
+            </AnimatedCardList>
           </div>
         );
       })}
