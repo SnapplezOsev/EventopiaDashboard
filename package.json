@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "node -e \"const fs = require('fs'); if (fs.existsSync('.next/standalone')) { fs.cpSync('.next/static', '.next/standalone/.next/static', { recursive: true, force: true }); fs.cpSync('public', '.next/standalone/public', { recursive: true, force: true }); }\"",
     "start": "next start",
     "lint": "eslint"
   },
