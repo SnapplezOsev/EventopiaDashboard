@@ -5,6 +5,7 @@ import {
   syncScheduleToGoogle, 
   getLastSyncStatus 
 } from '@/lib/googleCalendar';
+import { getWeekDetails } from '@/lib/weekUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,24 +44,36 @@ export async function POST(request) {
       }, { status: 200 });
     }
 
-    // Get functions to sync (either passed in body or fetched from /api/schedule)
+    // Determine functions to sync:
+    // If specific functions are passed and syncRange is not 'upcoming', sync those.
+    // Otherwise, fetch the full rolling 4-week window (current week + 3 upcoming weeks)
+    // so Google Calendar always has future projects, deliveries, and shifts in sync.
     let functions = body.functions;
     let canceledFunctions = body.canceledFunctions || [];
-    if (!Array.isArray(functions) || functions.length === 0) {
+
+    if (!Array.isArray(functions) || functions.length === 0 || body.syncRange === 'upcoming') {
       const port = process.env.PORT || 3000;
       const baseUrl = process.env.NEXTAUTH_URL || `http://127.0.0.1:${port}`;
-      try {
-        const schedRes = await fetch(`${baseUrl}/api/schedule`, { next: { revalidate: 0 } });
-        if (schedRes.ok) {
-          const schedData = await schedRes.json();
-          functions = schedData.functions || [];
-          if (!canceledFunctions.length) {
-            canceledFunctions = schedData.canceledFunctions || [];
+      const weekOffsets = [0, 1, 2, 3];
+      const allFunctionsMap = new Map();
+      const allCanceledMap = new Map();
+
+      for (const offset of weekOffsets) {
+        const { weekStr } = getWeekDetails(offset);
+        try {
+          const schedRes = await fetch(`${baseUrl}/api/schedule?week=${weekStr}`, { next: { revalidate: 0 } });
+          if (schedRes.ok) {
+            const schedData = await schedRes.json();
+            for (const f of (schedData.functions || [])) allFunctionsMap.set(f.id, f);
+            for (const cf of (schedData.canceledFunctions || [])) allCanceledMap.set(cf.id, cf);
           }
+        } catch (err) {
+          console.warn(`Could not self-fetch schedule for calendar sync (week ${weekStr}):`, err.message);
         }
-      } catch (err) {
-        console.warn('Could not self-fetch schedule for calendar sync:', err.message);
       }
+
+      functions = Array.from(allFunctionsMap.values());
+      canceledFunctions = Array.from(allCanceledMap.values());
     }
 
     if (!Array.isArray(functions) || functions.length === 0) {
@@ -71,7 +84,7 @@ export async function POST(request) {
     }
 
     const result = await syncScheduleToGoogle(functions, { canceledFunctions });
-    return NextResponse.json({ success: true, result });
+    return NextResponse.json({ success: true, result, weeksCount: 4 });
   } catch (err) {
     console.error('Calendar sync API error:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

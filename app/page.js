@@ -13,6 +13,16 @@ import RentmanSyncModal from '@/components/RentmanSyncModal';
 import WarehouseView from '@/components/WarehouseView';
 import { getWeekDetails } from '@/lib/weekUtils';
 
+// Helper to determine default week: on Sunday afternoon (from 14:00 onwards),
+// auto-advance to next week (offset 1) so upcoming workweek is immediately visible on the TV
+export function getDefaultWeekOffset() {
+  const now = new Date();
+  if (now.getDay() === 0 && now.getHours() >= 14) {
+    return 1;
+  }
+  return 0;
+}
+
 // --- State Reducer ---
 const initialState = {
   functions: [],
@@ -27,7 +37,7 @@ const initialState = {
   selectedFunction: null,
   selectedTask: null,
   isTaskModalOpen: false,
-  weekOffset: 0,
+  weekOffset: getDefaultWeekOffset(),
   pendingRentmanSync: [],
 };
 
@@ -97,7 +107,7 @@ function dashboardReducer(state, action) {
     case 'CHANGE_WEEK':
       return { ...state, weekOffset: state.weekOffset + action.payload, isLoading: true, functions: [] };
     case 'RESET_WEEK':
-      return { ...state, weekOffset: 0 };
+      return { ...state, weekOffset: getDefaultWeekOffset() };
     case 'OPTIMISTIC_ASSIGN': {
       const { functionId, crewId, crewName, crewCategory, projectCrewId } = action.payload;
       return {
@@ -207,6 +217,24 @@ export default function Dashboard() {
   const [warehouseData, setWarehouseData] = useState(null);
   const [isWarehouseLoading, setIsWarehouseLoading] = useState(false);
   const [warehouseError, setWarehouseError] = useState(null);
+  const [nextWeekFunctions, setNextWeekFunctions] = useState([]);
+
+  // On Sunday, prefetch next week immediately so screensaver tomorrowEventCount is ready right away
+  useEffect(() => {
+    const now = new Date();
+    if (now.getDay() === 0) {
+      const { weekStr: nextWeekStr } = getWeekDetails(1);
+      fetch(`/api/schedule?week=${nextWeekStr}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.functions) {
+            weekCacheRef.current.set(nextWeekStr, { data, timestamp: Date.now() });
+            setNextWeekFunctions(data.functions);
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
 
   const [settings, setSettings] = useState({
     startTime: '07:00',
@@ -509,8 +537,9 @@ export default function Dashboard() {
       weekIdleTimerRef.current = null;
     }
 
-    // Only set timer if we are currently not on the current week
-    if (state.weekOffset !== 0) {
+    // Only set timer if we are currently not on the default week
+    const defaultOffset = getDefaultWeekOffset();
+    if (state.weekOffset !== defaultOffset) {
       weekIdleTimerRef.current = setTimeout(() => {
         weekIdleTimerRef.current = null;
         // Don't auto-reset week if a modal is open
@@ -603,11 +632,11 @@ export default function Dashboard() {
   const isCalendarConfiguredRef = useRef(true);
   const lastCalendarSyncTimeRef = useRef(0);
 
-  const triggerAutoCalendarSync = useCallback(async (functionsToSync, force = false, canceledFunctions = undefined) => {
+  const triggerAutoCalendarSync = useCallback(async (functionsToSync = null, force = false, canceledFunctions = undefined) => {
     if (!isCalendarConfiguredRef.current && !force) return;
     const now = Date.now();
-    // Throttle automatic periodic syncs to at most once every 45 seconds unless forced
-    if (!force && (now - lastCalendarSyncTimeRef.current < 45 * 1000)) {
+    // Throttle automatic periodic syncs to at most once every 90 seconds unless forced
+    if (!force && (now - lastCalendarSyncTimeRef.current < 90 * 1000)) {
       return;
     }
     if (isSyncingCalendarRef.current) return;
@@ -620,6 +649,7 @@ export default function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           action: 'sync',
+          syncRange: 'upcoming',
           functions: Array.isArray(functionsToSync) && functionsToSync.length > 0 ? functionsToSync : undefined,
           canceledFunctions: Array.isArray(canceledFunctions) ? canceledFunctions : undefined
         }),
@@ -659,6 +689,9 @@ export default function Dashboard() {
           .then(data => {
             if (data?.functions) {
               weekCacheRef.current.set(nextWeekStr, { data, timestamp: Date.now() });
+              if (nextOffset === 1 || baseOffset === 0) {
+                setNextWeekFunctions(data.functions);
+              }
             }
           })
           .catch(() => {});
@@ -708,9 +741,9 @@ export default function Dashboard() {
       weekCacheRef.current.set(weekStr, { data, timestamp: Date.now() });
       dispatch({ type: 'FETCH_SUCCESS', payload: data });
       setRetryCountdown(null);
-      // Auto-sync current week to Google Calendar in background (fire-and-forget)
-      if (state.weekOffset === 0 && Array.isArray(data.functions) && data.functions.length > 0) {
-        triggerAutoCalendarSync(data.functions, false, data.canceledFunctions);
+      // Auto-sync current & upcoming weeks to Google Calendar in background (fire-and-forget)
+      if (state.weekOffset === 0 || state.weekOffset === 1) {
+        triggerAutoCalendarSync(null, false);
       }
       // Gentle idle prefetch
       scheduleIdlePrefetch(state.weekOffset);
@@ -881,20 +914,21 @@ export default function Dashboard() {
       prefetchTimerRef.current = null;
     }
 
-    currentOffsetRef.current = 0;
-    const { weekStr } = getWeekDetails(0);
+    const defaultOffset = getDefaultWeekOffset();
+    currentOffsetRef.current = defaultOffset;
+    const { weekStr } = getWeekDetails(defaultOffset);
     const cached = weekCacheRef.current.get(weekStr);
 
     if (cached?.data && (Date.now() - cached.timestamp < CLIENT_WEEK_CACHE_TTL)) {
       dispatch({ 
         type: 'NAVIGATE_WEEK', 
-        payload: { offset: 0, cachedData: cached.data } 
+        payload: { offset: defaultOffset, cachedData: cached.data } 
       });
-      scheduleIdlePrefetch(0);
+      scheduleIdlePrefetch(defaultOffset);
     } else {
       dispatch({ 
         type: 'NAVIGATE_WEEK', 
-        payload: { offset: 0, cachedData: null } 
+        payload: { offset: defaultOffset, cachedData: null } 
       });
     }
   }, [scheduleIdlePrefetch]);
@@ -1114,16 +1148,30 @@ export default function Dashboard() {
   }, [state.selectedFunction, fetchData, triggerAutoCalendarSync]);
 
   // Count events for tomorrow (screensaver display)
-  const tomorrowEventCount = (() => {
+  const tomorrowEventCount = useMemo(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
-    return state.functions.filter(f => {
-      const start = f.planperiod_start?.slice(0, 10);
-      const end = f.planperiod_end?.slice(0, 10);
-      return start <= tomorrowStr && end >= tomorrowStr;
-    }).length;
-  })();
+    const y = tomorrow.getFullYear();
+    const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const d = String(tomorrow.getDate()).padStart(2, '0');
+    const tomorrowStr = `${y}-${m}-${d}`;
+
+    // Combine current week's functions and next week's functions to smoothly handle week transitions (especially Sundays)
+    const candidateFunctions = [...state.functions, ...(nextWeekFunctions || [])];
+    const seen = new Set();
+    let count = 0;
+
+    for (const f of candidateFunctions) {
+      if (!f || seen.has(f.id)) continue;
+      seen.add(f.id);
+      const start = f.planperiod_start ? f.planperiod_start.slice(0, 10) : null;
+      const end = (f.planperiod_end || f.planperiod_start) ? (f.planperiod_end || f.planperiod_start).slice(0, 10) : null;
+      if (start && end && start <= tomorrowStr && end >= tomorrowStr) {
+        count++;
+      }
+    }
+    return count;
+  }, [state.functions, nextWeekFunctions]);
 
   // Compute current week's Monday immediately based on offset
   const currentWeekInfo = useMemo(() => getWeekDetails(state.weekOffset), [state.weekOffset]);
@@ -1155,7 +1203,7 @@ export default function Dashboard() {
         weekStart={weekStartDate}
         onWeekChange={handleWeekChange}
         onResetWeek={handleResetWeek}
-        isCurrentWeek={state.weekOffset === 0}
+        isCurrentWeek={state.weekOffset === getDefaultWeekOffset()}
         isWeekLoading={state.isLoading || state.isBackgroundSyncing}
         onCreateMeeting={() => setIsMeetingModalOpen(true)}
         pendingSyncCount={state.pendingRentmanSync?.length || 0}
