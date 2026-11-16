@@ -62,7 +62,7 @@ export async function POST(request) {
 
       try {
         const schedRes = await fetch(
-          `${baseUrl}/api/schedule?startDate=${startDate}&endDate=${endDate}`, 
+          `${baseUrl}/api/schedule?startDate=${startDate}&endDate=${endDate}&skipGcal=true`, 
           { next: { revalidate: 0 } }
         );
         if (schedRes.ok) {

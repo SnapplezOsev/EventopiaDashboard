@@ -658,8 +658,8 @@ export default function Dashboard() {
   const triggerAutoCalendarSync = useCallback(async (functionsToSync = null, force = false, canceledFunctions = undefined) => {
     if (!isCalendarConfiguredRef.current && !force) return;
     const now = Date.now();
-    // Throttle automatic periodic syncs to at most once every 90 seconds unless forced
-    if (!force && (now - lastCalendarSyncTimeRef.current < 90 * 1000)) {
+    // Throttle automatic periodic syncs to at most once every 3 minutes unless forced
+    if (!force && (now - lastCalendarSyncTimeRef.current < 180 * 1000)) {
       return;
     }
     if (isSyncingCalendarRef.current) return;
