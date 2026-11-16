@@ -66,7 +66,7 @@ export default function Header({
               <span className="text-xs">📋</span>
               <span>Rentman-synk</span>
               {pendingSyncCount > 0 ? (
-                <span className="ml-1 bg-amber-400 text-black px-1.5 py-0.2 rounded-full font-black text-[10px]">
+                <span className="ml-1.5 bg-amber-400 text-black px-1.5 py-0.5 rounded-full font-black text-[10px] leading-none">
                   {pendingSyncCount}
                 </span>
               ) : (
@@ -87,15 +87,15 @@ export default function Header({
               >
                 <span>{showUnscheduledInGrid ? '👁️' : '👁️‍🗨️'}</span>
                 <span>Ej tidsatta</span>
-                <span className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                <span className={`ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold leading-none ${
                   showUnscheduledInGrid 
                     ? 'bg-amber-400 text-black font-black' 
-                    : 'bg-white/10 text-white/60'
+                    : 'bg-white/10 text-white/70'
                 }`}>
                   {showUnscheduledInGrid ? 'Visas' : 'Dolda'}
                 </span>
                 {unscheduledCount > 0 && !showUnscheduledInGrid && (
-                  <span className="ml-1 text-[10px] text-amber-300 font-semibold bg-amber-500/20 px-1.5 py-0.2 rounded-full">
+                  <span className="ml-1 text-[10px] text-amber-300 font-bold bg-amber-500/25 border border-amber-500/40 px-1.5 py-0.5 rounded-full leading-none">
                     {unscheduledCount}
                   </span>
                 )}
@@ -163,7 +163,7 @@ export default function Header({
       </div>
 
       {/* Right side: View Switcher (to the left of clock) + Time & Date */}
-      <div className="flex items-center gap-3 lg:gap-4 shrink-0 z-10">
+      <div className="flex items-center gap-3 lg:gap-4 shrink-0 z-10 pr-2">
         {onViewChange && (
           <div className="flex items-center bg-black/40 p-1 rounded-2xl border border-white/10 shadow-inner">
             <button
@@ -193,11 +193,11 @@ export default function Header({
           </div>
         )}
 
-        <div className="flex flex-col items-end text-white text-shadow-sm min-w-[80px]">
-          <div className="text-xl lg:text-2xl font-mono font-semibold tracking-wider leading-none" suppressHydrationWarning>
+        <div className="flex flex-col items-end text-white text-shadow-sm min-w-[100px]">
+          <div className="text-xl lg:text-2xl font-mono font-bold tracking-wider leading-none" suppressHydrationWarning>
             {timeStr}
           </div>
-          <div className="text-xs font-medium text-white/70 capitalize mt-0.5 whitespace-nowrap" suppressHydrationWarning>
+          <div className="text-xs font-medium text-white/80 capitalize mt-1 whitespace-nowrap" suppressHydrationWarning>
             {dateStr}
           </div>
         </div>

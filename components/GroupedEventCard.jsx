@@ -93,23 +93,23 @@ function GroupedEventCard({ group, onFunctionClick }) {
 
   return (
     <div 
-      className={`bg-white/[0.04] hover:bg-white/[0.06] border border-white/10 rounded-2xl p-2.5 flex flex-col gap-2 transition-all shadow-md relative overflow-hidden ${
-        isAllGroupDone ? 'opacity-65 hover:opacity-100' : ''
+      className={`bg-white/[0.06] hover:bg-white/[0.09] border border-white/10 rounded-2xl p-2.5 flex flex-col gap-2 transition-all shadow-md relative overflow-hidden ${
+        isAllGroupDone ? 'opacity-70 hover:opacity-100' : ''
       } ${justUpdated ? 'card-updated' : ''}`}
     >
       {/* Group Header: Project name & Function group pill */}
       <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-white/10">
-        <div className="min-w-0 flex items-center gap-1.5">
+        <div className="min-w-0 flex items-center gap-2">
           <div 
             className="w-2.5 h-2.5 shrink-0 rounded-full shadow-sm"
             style={{ backgroundColor: projectColor }}
           />
           <div className="min-w-0">
-            <span className="text-white font-bold text-xs truncate block max-w-[110px] 2xl:max-w-[170px]" title={group.projectName}>
+            <span className="text-white font-bold text-xs truncate block max-w-[170px]" title={group.projectName}>
               {group.projectName}
             </span>
             {group.customerName && (
-              <span className="text-white/40 text-[10px] truncate block max-w-[110px] 2xl:max-w-[170px]">
+              <span className="text-white/60 text-[10px] truncate block max-w-[170px] font-medium">
                 {group.customerName}
               </span>
             )}
@@ -123,7 +123,7 @@ function GroupedEventCard({ group, onFunctionClick }) {
             title={`Funktionsgrupp: ${group.groupName}`}
           >
             <span>📁</span>
-            <span className="truncate max-w-[65px] 2xl:max-w-[90px]">{shortenLeverans(group.groupName)}</span>
+            <span className="truncate max-w-[90px]">{shortenLeverans(group.groupName)}</span>
           </span>
         </div>
       </div>
@@ -149,16 +149,16 @@ function GroupedEventCard({ group, onFunctionClick }) {
           const isDone = isFunctionCompleted(func);
 
           const itemStyleClass = isDone
-            ? 'opacity-50 hover:opacity-100 grayscale-[0.5] hover:grayscale-0 bg-white/[0.02] border border-white/5 hover:border-white/20'
+            ? 'opacity-70 hover:opacity-100 bg-white/[0.03] border border-white/10 hover:border-white/20'
             : func.isUnscheduled
-            ? 'bg-amber-500/[0.06] hover:bg-amber-500/[0.1] border border-amber-500/25 border-dashed'
-            : 'bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20';
+            ? 'bg-amber-500/[0.08] hover:bg-amber-500/[0.12] border border-amber-500/30 border-dashed'
+            : 'bg-white/[0.05] hover:bg-white/[0.09] border border-white/10 hover:border-white/20';
 
           const timeBadgeClass = isDone
-            ? 'bg-white/5 text-white/50 text-sm'
+            ? 'bg-white/10 text-white/70 text-xs font-bold'
             : func.isUnscheduled
-            ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30 text-xs'
-            : 'bg-white/10 text-white text-sm';
+            ? 'bg-amber-500/25 text-amber-200 border border-amber-500/40 text-xs font-bold'
+            : 'bg-white/15 text-white text-xs font-bold';
 
           return (
             <div
@@ -174,22 +174,22 @@ function GroupedEventCard({ group, onFunctionClick }) {
                 <div className={`${timeBadgeClass} px-2 py-0.5 rounded-md font-bold tracking-wide`}>
                   {timeString}
                 </div>
-                <div className={`font-bold ${isDone ? 'text-white/60' : 'text-white'} text-xs truncate max-w-[150px] text-right`} title={func.name}>
+                <div className={`font-bold ${isDone ? 'text-white/70' : 'text-white'} text-xs truncate max-w-[150px] text-right`} title={func.name}>
                   {shortenLeverans(func.name)}
                 </div>
               </div>
 
               {/* Row 2: Status, Vehicle and Assignee info */}
-              <div className="flex justify-between items-center w-full pt-1 border-t border-white/5 gap-1">
-                <div className="flex items-center gap-1 min-w-0">
+              <div className="flex justify-between items-center w-full pt-1.5 border-t border-white/10 gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
                   {displayStatus && (
-                    <span className={`text-[9px] px-1.5 py-0.2 rounded-full border ${projStatusClass} font-semibold uppercase tracking-wider shrink-0`}>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${projStatusClass} font-bold uppercase tracking-wider shrink-0`}>
                       {displayStatus}
                     </span>
                   )}
                   {warehouseInfo && (
                     <span 
-                      className={`text-[9px] px-1 py-0.2 rounded-full border ${warehouseInfo.badgeClass} font-bold shrink-0 flex items-center shadow-sm cursor-help`}
+                      className={`text-[10px] px-1.5 py-0.5 rounded-full border ${warehouseInfo.badgeClass} font-bold shrink-0 flex items-center shadow-sm cursor-help`}
                       title={`Lagerstatus: ${warehouseInfo.label}`}
                     >
                       <span>{warehouseInfo.icon}</span>
@@ -197,7 +197,7 @@ function GroupedEventCard({ group, onFunctionClick }) {
                   )}
                   {func.vehicleNames && func.vehicleNames.length > 0 && (
                     <span 
-                      className="text-[9px] px-1.5 py-0.2 rounded-full border bg-white/10 text-white/80 border-white/20 font-medium truncate max-w-[150px]" 
+                      className="text-[10px] px-2 py-0.5 rounded-full border bg-white/10 text-white/85 border-white/20 font-medium truncate max-w-[150px]" 
                       title={func.vehicleNames.join(', ')}
                     >
                       🚚 {func.vehicleNames.join(', ')}
@@ -205,18 +205,18 @@ function GroupedEventCard({ group, onFunctionClick }) {
                   )}
                 </div>
 
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {func.isUnscheduled ? (
-                    <div className="text-[9px] px-1.5 py-0.2 rounded font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30">
+                    <div className="text-[10px] px-2 py-0.5 rounded font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30">
                       ⚠️ Ej tidsatt
                     </div>
                   ) : (
                     <>
-                      <div className={`text-[10px] px-1.5 py-0.2 rounded font-bold tracking-widest ${isFullyAssigned ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10'}`}>
+                      <div className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold tracking-wider border ${isFullyAssigned ? 'text-green-300 bg-green-500/15 border-green-500/30' : 'text-red-300 bg-red-500/15 border-red-500/30'}`}>
                         [{initials}]
                       </div>
-                      <div className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full border flex items-center gap-0.5 ${isFullyAssigned ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`}>
-                        {assignedCount}/{requiredAmount}
+                      <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-0.5 ${isFullyAssigned ? 'bg-green-500/20 text-green-300 border-green-500/30' : 'bg-red-500/20 text-red-300 border-red-500/30'}`}>
+                        {assignedCount} / {requiredAmount}
                       </div>
                     </>
                   )}

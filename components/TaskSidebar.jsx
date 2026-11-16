@@ -43,33 +43,33 @@ export default function TaskSidebar({
       {/* Header */}
       <div className="p-4 border-b border-white/10 bg-white/[0.02] flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-white tracking-wide">Uppgifter & Oplanerat</h2>
-          <div className="bg-white/10 px-2.5 py-0.5 rounded-full text-sm text-white font-medium">
+          <h2 className="text-base font-bold text-white tracking-wide">Uppgifter & Oplanerat</h2>
+          <div className="bg-white/10 border border-white/15 px-2.5 py-0.5 rounded-full text-xs text-white/90 font-bold">
             {activeTasks.length + unscheduledFunctions.length}
           </div>
         </div>
         <button 
           onClick={onCreateTask}
           title="Skapa ny uppgift"
-          className="w-9 h-9 flex items-center justify-center bg-blue-600 hover:bg-blue-500 rounded-full text-white font-bold text-xl leading-none active:scale-95 transition-all shadow-md"
+          className="w-8 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-500 rounded-xl text-white font-bold text-lg leading-none active:scale-95 transition-all shadow-md"
         >
           +
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex p-2 gap-1.5 border-b border-white/10 bg-black/20 overflow-x-auto custom-scrollbar">
+      <div className="flex p-2 gap-2 border-b border-white/10 bg-black/20 overflow-x-auto custom-scrollbar">
         <button
           onClick={() => setActiveTab('active')}
-          className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+          className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 shrink-0 ${
             activeTab === 'active'
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'text-white/60 hover:text-white hover:bg-white/5'
+              ? 'bg-blue-600 text-white shadow-md font-bold'
+              : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
         >
           <span>Aktiva</span>
-          <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-            activeTab === 'active' ? 'bg-black/25 text-white' : 'bg-white/10 text-white/70'
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${
+            activeTab === 'active' ? 'bg-black/30 text-white' : 'bg-white/10 text-white/80'
           }`}>
             {activeTasks.length}
           </span>
@@ -77,19 +77,19 @@ export default function TaskSidebar({
 
         <button
           onClick={() => setActiveTab('unscheduled')}
-          className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+          className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 shrink-0 ${
             activeTab === 'unscheduled'
-              ? 'bg-amber-600 text-white shadow-md'
+              ? 'bg-amber-600 text-white shadow-md font-bold'
               : unscheduledFunctions.length > 0 
                 ? 'text-amber-300 hover:text-white hover:bg-amber-500/10' 
-                : 'text-white/60 hover:text-white hover:bg-white/5'
+                : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
         >
           <span>⚠️ Ej tidsatta</span>
-          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${
             activeTab === 'unscheduled' 
-              ? 'bg-black/25 text-white' 
-              : unscheduledFunctions.length > 0 ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10 text-white/70'
+              ? 'bg-black/30 text-white' 
+              : unscheduledFunctions.length > 0 ? 'bg-amber-500/25 text-amber-200 border border-amber-500/40' : 'bg-white/10 text-white/80'
           }`}>
             {unscheduledFunctions.length}
           </span>
@@ -97,15 +97,15 @@ export default function TaskSidebar({
 
         <button
           onClick={() => setActiveTab('completed')}
-          className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+          className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 shrink-0 ${
             activeTab === 'completed'
-              ? 'bg-emerald-600 text-white shadow-md'
-              : 'text-white/60 hover:text-white hover:bg-white/5'
+              ? 'bg-emerald-600 text-white shadow-md font-bold'
+              : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
         >
           <span>Klara</span>
-          <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-            activeTab === 'completed' ? 'bg-black/25 text-white' : 'bg-white/10 text-white/70'
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${
+            activeTab === 'completed' ? 'bg-black/30 text-white' : 'bg-white/10 text-white/80'
           }`}>
             {completedTasks.length}
           </span>
@@ -220,14 +220,14 @@ export default function TaskSidebar({
               <div 
                 key={task.id} 
                 onClick={() => onTaskClick(task)}
-                className={`transition-all cursor-pointer rounded-xl p-3 border flex flex-col gap-2 ${
+                className={`transition-all cursor-pointer rounded-xl p-3 border flex flex-col gap-2 shadow-sm ${
                   task.isCompleted
-                    ? 'bg-emerald-950/20 border-emerald-500/20 hover:bg-emerald-950/30'
-                    : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/5 active:scale-[0.98]'
+                    ? 'bg-emerald-950/25 border-emerald-500/30 hover:bg-emerald-950/40'
+                    : 'bg-white/[0.06] hover:bg-white/[0.1] border-white/10 hover:border-white/20 active:scale-[0.98]'
                 }`}
               >
                 <div className="flex justify-between items-start gap-2">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -237,47 +237,47 @@ export default function TaskSidebar({
                       title={task.isCompleted ? "Markera som ej klar" : "Markera som klar"}
                       className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
                         task.isCompleted
-                          ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/40'
+                          ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/40 border border-emerald-500/40'
                           : 'border border-white/30 hover:border-emerald-400 hover:bg-emerald-500/10 text-transparent hover:text-emerald-400'
                       }`}
                     >
                       <span className="text-xs font-bold leading-none">✓</span>
                     </button>
-                    <span className={`font-medium text-sm leading-tight truncate ${
-                      task.isCompleted ? 'text-white/60 line-through' : 'text-white'
+                    <span className={`font-semibold text-sm leading-snug truncate ${
+                      task.isCompleted ? 'text-white/50 line-through' : 'text-white'
                     }`}>
                       {task.name}
                     </span>
                   </div>
                   {!task.isCompleted && task.priority !== 'no_priority' && (
-                    <div className={`w-2 h-2 rounded-full mt-1 shrink-0 ${priorityColor}`}></div>
+                    <div className={`w-2.5 h-2.5 rounded-full mt-1 shrink-0 ${priorityColor}`}></div>
                   )}
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] mt-1">
-                  <span className={`${isOverdue ? 'text-red-400 font-medium' : 'text-white/50'}`}>
+                <div className="flex items-center justify-between text-xs mt-0.5">
+                  <span className={`${isOverdue ? 'text-red-400 font-bold' : 'text-white/70'}`}>
                     {task.isCompleted ? (
-                      <span className="text-emerald-400/80 font-medium">Klar</span>
+                      <span className="text-emerald-400/90 font-medium">Klar</span>
                     ) : (
                       dateStr ? `Förfaller: ${dateStr}` : 'Inget förfallodatum'
                     )}
                   </span>
-                  <span className={`px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider text-[9px] ${
+                  <span className={`px-2 py-0.5 rounded-full font-bold uppercase tracking-wider text-[10px] border ${
                     task.isCompleted
-                      ? 'bg-emerald-500/20 text-emerald-300'
-                      : 'bg-white/10 text-white/70'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      : 'bg-white/10 text-white/80 border-white/15'
                   }`}>
                     {task.isCompleted ? 'Klar' : (task.status || 'Att göra')}
                   </span>
                 </div>
                 
                 {((task.projectName && task.projectName !== 'Unknown Project') || initials) && (
-                  <div className="flex justify-between items-center text-[11px] mt-1 pt-2 border-t border-white/5">
-                    <span className="text-white/40 truncate max-w-[150px]">
+                  <div className="flex justify-between items-center text-xs mt-0.5 pt-2 border-t border-white/10">
+                    <span className="text-white/60 truncate max-w-[180px] font-medium">
                       {task.projectName !== 'Unknown Project' ? task.projectName : ''}
                     </span>
                     {initials && (
-                      <span className="bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded font-bold tracking-widest text-[9px]">
+                      <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-md font-bold tracking-wider text-[10px]">
                         [{initials}]
                       </span>
                     )}

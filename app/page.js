@@ -1304,7 +1304,7 @@ export default function Dashboard() {
           </div>
 
           {/* Task Sidebar & Action Buttons */}
-          <div className="w-[310px] xl:w-[350px] 2xl:w-[400px] 3xl:w-[450px] flex-shrink-0 flex flex-col gap-3">
+          <div className="w-[450px] flex-shrink-0 flex flex-col gap-3">
             <div className="flex-1 min-h-0">
               <TaskSidebar 
                 tasks={state.tasks} 
@@ -1315,10 +1315,10 @@ export default function Dashboard() {
                 onToggleTaskComplete={handleToggleTaskComplete}
               />
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 pr-10">
               <button
                 onClick={() => setIsSettingsModalOpen(true)}
-                className="flex-1 bg-white/5 hover:bg-white/10 active:scale-95 transition-all p-4 rounded-2xl border border-white/10 flex items-center justify-center gap-2 text-white font-medium shadow-sm"
+                className="flex-1 bg-white/5 hover:bg-white/10 active:scale-95 transition-all p-3.5 rounded-2xl border border-white/10 flex items-center justify-center gap-2 text-white font-medium shadow-sm"
               >
                 <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 Inställningar
@@ -1328,7 +1328,7 @@ export default function Dashboard() {
                   forceSleepRef.current = true;
                   setScreensaverActive(true);
                 }}
-                className="flex-1 bg-white/5 hover:bg-white/10 active:scale-95 transition-all p-4 rounded-2xl border border-white/10 flex items-center justify-center gap-2 text-white font-medium shadow-sm"
+                className="flex-1 bg-white/5 hover:bg-white/10 active:scale-95 transition-all p-3.5 rounded-2xl border border-white/10 flex items-center justify-center gap-2 text-white font-medium shadow-sm"
               >
                 <svg className="w-5 h-5 text-indigo-300" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
                 Sovläge

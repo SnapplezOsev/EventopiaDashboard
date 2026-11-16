@@ -266,7 +266,7 @@ export default function WeekGrid({ functions = [], weekStart, onFunctionClick, i
   return (
     <div 
       ref={scrollContainerRef}
-      className="flex overflow-x-auto gap-2.5 lg:gap-3 2xl:gap-4 h-full p-3 lg:p-4 2xl:p-6 snap-x snap-mandatory custom-scrollbar"
+      className="flex overflow-x-auto gap-4 h-full p-6 snap-x snap-mandatory custom-scrollbar"
     >
       {weekDays.map((day, idx) => {
         const isToday = day.toDateString() === today.toDateString();
@@ -314,12 +314,12 @@ export default function WeekGrid({ functions = [], weekStart, onFunctionClick, i
           <div 
             key={idx} 
             ref={isToday ? todayRef : null}
-            className={`flex-1 min-w-[195px] max-w-[380px] snap-start flex flex-col h-full bg-white/5 backdrop-blur-sm rounded-2xl border ${isToday ? 'border-blue-400/50 shadow-[0_0_15px_rgba(96,165,250,0.2)]' : 'border-white/10'} overflow-hidden`}
+            className={`flex-none w-[340px] snap-start flex flex-col h-full bg-white/5 backdrop-blur-sm rounded-2xl border ${isToday ? 'border-blue-400/50 shadow-[0_0_15px_rgba(96,165,250,0.2)]' : 'border-white/10'} overflow-hidden`}
           >
-            <div className={`px-3 py-2.5 lg:p-4 border-b ${isToday ? 'border-blue-400/30 bg-blue-500/10' : 'border-white/10 bg-white/[0.02]'} flex justify-between items-center`}>
-              <h2 className="text-xs lg:text-sm font-semibold text-white tracking-wide truncate">{capitalizedDay}</h2>
+            <div className={`p-4 border-b ${isToday ? 'border-blue-400/30 bg-blue-500/10' : 'border-white/10 bg-white/[0.02]'} flex justify-between items-center`}>
+              <h2 className="text-sm font-semibold text-white tracking-wide">{capitalizedDay}</h2>
               {!isLoading && unassignedCount > 0 && (
-                <div className="w-5 h-5 lg:w-6 lg:h-6 rounded-full bg-red-500 text-white text-[11px] lg:text-xs flex items-center justify-center font-bold shrink-0 ml-1.5"
+                <div className="w-6 h-6 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-bold"
                      style={{ animation: 'pulse-glow 2s infinite' }}>
                   {unassignedCount}
                 </div>
