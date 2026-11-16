@@ -195,7 +195,23 @@ export async function GET(request) {
       const customerName = customerId ? (contactMap[customerId] || 'Okänd Kund') : 'Okänd Kund';
 
       const locationId = extractId(sp.location) || extractId(project.location);
-      const locationName = locationId ? (contactMap[locationId] || 'Lager / Plats') : (sp.location_name || project.location_name || 'Lager / Plats');
+      let resolvedLoc = locationId && contactMap[locationId] ? contactMap[locationId] : (sp.location_name || project.location_name || '');
+      if (resolvedLoc === 'Okänd Plats' || resolvedLoc === 'Okänd' || resolvedLoc === 'Lager / Plats') resolvedLoc = '';
+      if (!resolvedLoc) {
+        const customPlats = (
+          project.custom?.custom_16 || 
+          project.custom?.plats || 
+          project.custom?.Plats || 
+          project.custom?.adress || 
+          project.custom?.Adress || 
+          sp.custom?.custom_16 || 
+          sp.custom?.plats || 
+          sp.custom?.Plats || 
+          ''
+        ).toString().trim();
+        if (customPlats) resolvedLoc = customPlats;
+      }
+      const locationName = resolvedLoc || 'Lager / Plats';
 
       const projectName = sp.name || project.name || 'Projekt';
       const projectColor = formatHexColor(sp.color || project.color, '#14B4EC');

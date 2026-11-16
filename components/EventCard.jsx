@@ -133,7 +133,7 @@ function EventCard({ func, onClick, onCardClick }) {
         <div className={`${timeBadgeClass} px-2 py-0.5 rounded-md font-bold tracking-wide`}>
           {timeString}
         </div>
-        <div className={`font-bold ${isDone ? 'text-white/60' : 'text-white'} text-sm truncate max-w-[150px] text-right`} title={func.name}>
+        <div className={`font-bold ${isDone ? 'text-white/60' : 'text-white'} text-sm truncate max-w-[110px] 2xl:max-w-[150px] text-right`} title={func.name}>
           {shortenLeverans(func.name)}
         </div>
       </div>
@@ -149,7 +149,7 @@ function EventCard({ func, onClick, onCardClick }) {
                   style={{ backgroundColor: func.projectColor.startsWith('#') ? func.projectColor : `#${func.projectColor}` }}
                 />
               )}
-              <div className="text-white/70 text-xs truncate max-w-[140px] font-medium" title={func.projectName}>
+              <div className="text-white/70 text-xs truncate max-w-[95px] 2xl:max-w-[140px] font-medium" title={func.projectName}>
                 {func.projectName}
               </div>
             </>
@@ -161,7 +161,7 @@ function EventCard({ func, onClick, onCardClick }) {
 
           {func.functionGroupName && (
             <span 
-              className="text-[10px] text-blue-300 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.2 rounded-md font-medium shrink-0 truncate max-w-[90px]"
+              className="text-[10px] text-blue-300 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.2 rounded-md font-medium shrink-0 truncate max-w-[65px] 2xl:max-w-[90px]"
               title={`Funktionsgrupp: ${func.functionGroupName}`}
             >
               📁 {shortenLeverans(func.functionGroupName)}

@@ -527,39 +527,62 @@ export default function Dashboard() {
     };
   }, [screensaverActive, resetIdleTimer]);
 
-  // Inactivity timer to reset week navigation to current week after 2 minutes of idle
-  const weekIdleTimerRef = useRef(null);
-  const resetWeekIdleTimerRef = useRef(null);
+  // Inactivity auto-return timer:
+  // If user opened a detailed card view, navigated to another week or day, or switched view,
+  // after 1 minute (60s) of inactivity automatically return to the default overview.
+  const overviewIdleTimerRef = useRef(null);
 
-  const resetWeekIdleTimer = useCallback(() => {
-    if (weekIdleTimerRef.current) {
-      clearTimeout(weekIdleTimerRef.current);
-      weekIdleTimerRef.current = null;
+  const isNotOnDefaultOverview = Boolean(
+    isAnyModalOpen ||
+    state.weekOffset !== getDefaultWeekOffset() ||
+    currentView !== (settings?.defaultView || 'office')
+  );
+
+  const resetOverviewIdleTimer = useCallback(() => {
+    if (overviewIdleTimerRef.current) {
+      clearTimeout(overviewIdleTimerRef.current);
+      overviewIdleTimerRef.current = null;
     }
 
-    // Only set timer if we are currently not on the default week
-    const defaultOffset = getDefaultWeekOffset();
-    if (state.weekOffset !== defaultOffset) {
-      weekIdleTimerRef.current = setTimeout(() => {
-        weekIdleTimerRef.current = null;
-        // Don't auto-reset week if a modal is open
-        if (isAnyModalOpenRef.current) {
-          resetWeekIdleTimerRef.current?.();
-          return;
+    if (screensaverActive) return;
+
+    if (isNotOnDefaultOverview) {
+      overviewIdleTimerRef.current = setTimeout(() => {
+        overviewIdleTimerRef.current = null;
+
+        // 1. Close all open detailed views and modals
+        dispatch({ type: 'CLOSE_MODAL' });
+        dispatch({ type: 'CLOSE_TASK_MODAL' });
+        setIsMeetingModalOpen(false);
+        setIsSettingsModalOpen(false);
+        setIsSyncModalOpen(false);
+        setEditingMeeting(null);
+
+        // 2. Return to default week
+        const defaultOffset = getDefaultWeekOffset();
+        if (state.weekOffset !== defaultOffset) {
+          dispatch({ type: 'RESET_WEEK' });
         }
-        dispatch({ type: 'RESET_WEEK' });
-      }, 2 * 60 * 1000); // 2 minutes
+
+        // 3. Return to default view (e.g. office)
+        const defView = settings?.defaultView || 'office';
+        if (currentView !== defView) {
+          setCurrentView(defView);
+        }
+
+        // 4. Reset WeekGrid horizontal scroll to today
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('reset-week-scroll'));
+        }
+      }, 60 * 1000); // 1 minute of inactivity
     }
-  }, [state.weekOffset]);
-  useEffect(() => {
-    resetWeekIdleTimerRef.current = resetWeekIdleTimer;
-  }, [resetWeekIdleTimer]);
+  }, [isNotOnDefaultOverview, screensaverActive, state.weekOffset, currentView, settings?.defaultView]);
 
   useEffect(() => {
-    resetWeekIdleTimer();
+    resetOverviewIdleTimer();
 
     const onUserActivity = () => {
-      resetWeekIdleTimer();
+      resetOverviewIdleTimer();
     };
 
     window.addEventListener('pointerdown', onUserActivity, { passive: true });
@@ -574,12 +597,12 @@ export default function Dashboard() {
       window.removeEventListener('touchstart', onUserActivity);
       window.removeEventListener('keydown', onUserActivity);
       window.removeEventListener('scroll', onUserActivity);
-      if (weekIdleTimerRef.current) {
-        clearTimeout(weekIdleTimerRef.current);
-        weekIdleTimerRef.current = null;
+      if (overviewIdleTimerRef.current) {
+        clearTimeout(overviewIdleTimerRef.current);
+        overviewIdleTimerRef.current = null;
       }
     };
-  }, [resetWeekIdleTimer]);
+  }, [resetOverviewIdleTimer]);
 
   useEffect(() => {
     const saved = localStorage.getItem('dashboard_settings');
@@ -1281,7 +1304,7 @@ export default function Dashboard() {
           </div>
 
           {/* Task Sidebar & Action Buttons */}
-          <div className="w-[450px] flex-shrink-0 flex flex-col gap-3">
+          <div className="w-[310px] xl:w-[350px] 2xl:w-[400px] 3xl:w-[450px] flex-shrink-0 flex flex-col gap-3">
             <div className="flex-1 min-h-0">
               <TaskSidebar 
                 tasks={state.tasks} 

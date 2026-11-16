@@ -105,11 +105,11 @@ function GroupedEventCard({ group, onFunctionClick }) {
             style={{ backgroundColor: projectColor }}
           />
           <div className="min-w-0">
-            <span className="text-white font-bold text-xs truncate block max-w-[170px]" title={group.projectName}>
+            <span className="text-white font-bold text-xs truncate block max-w-[110px] 2xl:max-w-[170px]" title={group.projectName}>
               {group.projectName}
             </span>
             {group.customerName && (
-              <span className="text-white/40 text-[10px] truncate block max-w-[170px]">
+              <span className="text-white/40 text-[10px] truncate block max-w-[110px] 2xl:max-w-[170px]">
                 {group.customerName}
               </span>
             )}
@@ -123,7 +123,7 @@ function GroupedEventCard({ group, onFunctionClick }) {
             title={`Funktionsgrupp: ${group.groupName}`}
           >
             <span>📁</span>
-            <span className="truncate max-w-[90px]">{shortenLeverans(group.groupName)}</span>
+            <span className="truncate max-w-[65px] 2xl:max-w-[90px]">{shortenLeverans(group.groupName)}</span>
           </span>
         </div>
       </div>

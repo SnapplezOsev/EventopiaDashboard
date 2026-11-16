@@ -46,34 +46,35 @@ export async function POST(request) {
 
     // Determine functions to sync:
     // If specific functions are passed and syncRange is not 'upcoming', sync those.
-    // Otherwise, fetch the full rolling 4-week window (current week + 3 upcoming weeks)
-    // so Google Calendar always has future projects, deliveries, and shifts in sync.
+    // Otherwise, fetch the full rolling window: past 2 weeks (-2) to upcoming 6 months (+26)
+    // so Google Calendar always updates the past 2 weeks and upcoming 6 months in sync.
     let functions = body.functions;
     let canceledFunctions = body.canceledFunctions || [];
+
+    const { weekStartStr: pastTwoWeeksStr } = getWeekDetails(-2);
+    const { weekEndStr: sixMonthsAheadStr } = getWeekDetails(26);
+    const startDate = body.startDate || pastTwoWeeksStr;
+    const endDate = body.endDate || sixMonthsAheadStr;
 
     if (!Array.isArray(functions) || functions.length === 0 || body.syncRange === 'upcoming') {
       const port = process.env.PORT || 3000;
       const baseUrl = process.env.NEXTAUTH_URL || `http://127.0.0.1:${port}`;
-      const weekOffsets = [0, 1, 2, 3];
-      const allFunctionsMap = new Map();
-      const allCanceledMap = new Map();
 
-      for (const offset of weekOffsets) {
-        const { weekStr } = getWeekDetails(offset);
-        try {
-          const schedRes = await fetch(`${baseUrl}/api/schedule?week=${weekStr}`, { next: { revalidate: 0 } });
-          if (schedRes.ok) {
-            const schedData = await schedRes.json();
-            for (const f of (schedData.functions || [])) allFunctionsMap.set(f.id, f);
-            for (const cf of (schedData.canceledFunctions || [])) allCanceledMap.set(cf.id, cf);
-          }
-        } catch (err) {
-          console.warn(`Could not self-fetch schedule for calendar sync (week ${weekStr}):`, err.message);
+      try {
+        const schedRes = await fetch(
+          `${baseUrl}/api/schedule?startDate=${startDate}&endDate=${endDate}`, 
+          { next: { revalidate: 0 } }
+        );
+        if (schedRes.ok) {
+          const schedData = await schedRes.json();
+          functions = schedData.functions || [];
+          canceledFunctions = schedData.canceledFunctions || [];
+        } else {
+          throw new Error(`Schedule fetch returned ${schedRes.status}`);
         }
+      } catch (err) {
+        console.warn(`Could not self-fetch schedule for calendar sync (${startDate} to ${endDate}):`, err.message);
       }
-
-      functions = Array.from(allFunctionsMap.values());
-      canceledFunctions = Array.from(allCanceledMap.values());
     }
 
     if (!Array.isArray(functions) || functions.length === 0) {
@@ -83,8 +84,17 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    const result = await syncScheduleToGoogle(functions, { canceledFunctions });
-    return NextResponse.json({ success: true, result, weeksCount: 4 });
+    const result = await syncScheduleToGoogle(functions, { 
+      canceledFunctions,
+      timeMin: `${startDate}T00:00:00Z`,
+      timeMax: `${endDate}T23:59:59Z`,
+    });
+    return NextResponse.json({ 
+      success: true, 
+      result, 
+      weeksCount: 29,
+      syncRange: { startDate, endDate } 
+    });
   } catch (err) {
     console.error('Calendar sync API error:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

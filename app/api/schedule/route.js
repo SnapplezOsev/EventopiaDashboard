@@ -69,9 +69,25 @@ if (!globalThis._inFlightSchedules) {
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
     const weekParam = searchParams.get('week') || searchParams.get('date');
+    const startDateParam = searchParams.get('startDate');
+    const endDateParam = searchParams.get('endDate');
     const forceRefresh = searchParams.get('refresh') === 'true';
     
-    const { weekStart, weekEnd, weekStartStr, weekEndStr, weekStr } = parseWeekString(weekParam);
+    let weekStart, weekEnd, weekStartStr, weekEndStr, weekStr;
+    if (startDateParam && endDateParam) {
+      weekStartStr = startDateParam.split('T')[0];
+      weekEndStr = endDateParam.split('T')[0];
+      weekStart = new Date(`${weekStartStr}T00:00:00`);
+      weekEnd = new Date(`${weekEndStr}T23:59:59`);
+      weekStr = `${weekStartStr}_to_${weekEndStr}`;
+    } else {
+      const parsed = parseWeekString(weekParam);
+      weekStart = parsed.weekStart;
+      weekEnd = parsed.weekEnd;
+      weekStartStr = parsed.weekStartStr;
+      weekEndStr = parsed.weekEndStr;
+      weekStr = parsed.weekStr;
+    }
     const cacheKey = weekStr;
 
     // Check fast cache first (persists across workers & reloads)
@@ -454,8 +470,35 @@ export async function GET(request) {
       const customerId = extractId(project.customer) || extractId(subproject?.customer);
       const customerName = customerId ? (contactMap[customerId] || 'Okänd Kund') : 'Okänd Kund';
 
+      // Location logic:
+      // 1. Primary: Standard "Location" from customer / contact linked on project or subproject
       const locationId = extractId(project.location) || extractId(subproject?.location);
-      const locationName = locationId ? (contactMap[locationId] || 'Okänd Plats') : (project.location_name || subproject?.location_name || 'Okänd Plats');
+      let resolvedLocation = locationId && contactMap[locationId] ? contactMap[locationId] : (project.location_name || subproject?.location_name || '');
+      if (resolvedLocation === 'Okänd Plats' || resolvedLocation === 'Okänd') {
+        resolvedLocation = '';
+      }
+
+      // 2. Fallback: If no standard Location is set, check custom variable "Plats" on project
+      // In Rentman this custom field is under project.custom (e.g. custom_16, plats, Plats)
+      if (!resolvedLocation) {
+        const customPlats = (
+          project.custom?.custom_16 || 
+          project.custom?.plats || 
+          project.custom?.Plats || 
+          project.custom?.adress || 
+          project.custom?.Adress || 
+          subproject?.custom?.custom_16 || 
+          subproject?.custom?.plats || 
+          subproject?.custom?.Plats || 
+          ''
+        ).toString().trim();
+
+        if (customPlats) {
+          resolvedLocation = customPlats;
+        }
+      }
+
+      const locationName = resolvedLocation || '';
 
       // Assigned crew from Rentman (Rentman uses 'function' or 'projectfunction')
       const assignedCrew = allProjCrew
