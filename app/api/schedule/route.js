@@ -4,7 +4,7 @@ import { fetchRentman, extractId } from '@/lib/rentman';
 import { getLocalAssignments, removeLocalAssignment } from '@/lib/localAssignments';
 import { getWarehouseData } from '@/lib/localWarehouse';
 import { parseWeekString } from '@/lib/weekUtils';
-import { getCachedSchedule, setCachedSchedule } from '@/lib/scheduleCache';
+import { getCachedSchedule, setCachedSchedule, getLastKnownSchedule, getCachedReferenceData, setCachedReferenceData } from '@/lib/scheduleCache';
 import { getGoogleCalendarEvents } from '@/lib/googleCalendar';
 
 // Module-level global cache to make repeated queries and prefetching near-instantaneous (under 5ms)
@@ -22,6 +22,14 @@ const REF_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 async function getReferenceData(safeFetch, force = false) {
   const now = Date.now();
+  // Try to restore from memory or disk cache first if empty
+  if (!globalThis._refDataState.data) {
+    const diskRef = getCachedReferenceData();
+    if (diskRef) {
+      globalThis._refDataState.data = diskRef;
+    }
+  }
+
   if (!force && globalThis._refDataState.data && (now - globalThis._refDataState.lastFetch < REF_CACHE_TTL)) {
     return globalThis._refDataState.data;
   }
@@ -47,19 +55,28 @@ async function getReferenceData(safeFetch, force = false) {
     safeFetch('/projectfunctiongroups?limit=1000&sort=-id')
   ]);
 
-  globalThis._refDataState.data = {
-    allProjects,
-    allSubprojects,
-    allStatuses,
-    allProjectStatuses,
-    allVehicles,
-    allCrew,
-    allContacts,
-    allTaskStatuses,
-    allProjFunctionGroups
+  const prev = globalThis._refDataState.data || {};
+
+  // Safeguard: Never overwrite valid statuses or projects with empty arrays if a network/Rentman error occurred!
+  const merged = {
+    allProjects: (allProjects && allProjects.length > 0) ? allProjects : (prev.allProjects || []),
+    allSubprojects: (allSubprojects && allSubprojects.length > 0) ? allSubprojects : (prev.allSubprojects || []),
+    allStatuses: (allStatuses && allStatuses.length > 0) ? allStatuses : (prev.allStatuses || []),
+    allProjectStatuses: (allProjectStatuses && allProjectStatuses.length > 0) ? allProjectStatuses : (prev.allProjectStatuses || []),
+    allVehicles: (allVehicles && allVehicles.length > 0) ? allVehicles : (prev.allVehicles || []),
+    allCrew: (allCrew && allCrew.length > 0) ? allCrew : (prev.allCrew || []),
+    allContacts: (allContacts && allContacts.length > 0) ? allContacts : (prev.allContacts || []),
+    allTaskStatuses: (allTaskStatuses && allTaskStatuses.length > 0) ? allTaskStatuses : (prev.allTaskStatuses || []),
+    allProjFunctionGroups: (allProjFunctionGroups && allProjFunctionGroups.length > 0) ? allProjFunctionGroups : (prev.allProjFunctionGroups || []),
   };
-  globalThis._refDataState.lastFetch = now;
-  return globalThis._refDataState.data;
+
+  if (merged.allStatuses.length > 0 || merged.allProjects.length > 0) {
+    globalThis._refDataState.data = merged;
+    globalThis._refDataState.lastFetch = now;
+    setCachedReferenceData(merged);
+  }
+
+  return globalThis._refDataState.data || merged;
 }
 
 if (!globalThis._inFlightSchedules) {
@@ -109,8 +126,9 @@ export async function GET(request) {
         return col.startsWith('#') ? col : `#${col}`;
       };
 
+      let hadRentmanFetchError = false;
       // Safe fetch with fallback and retry so temporary network/Rentman blips don't break the dashboard
-      const safeFetch = async (path, retries = 1) => {
+      const safeFetch = async (path, retries = 2) => {
         try {
           const res = await fetchRentman(path);
           return res?.data || [];
@@ -120,6 +138,7 @@ export async function GET(request) {
             return safeFetch(path, retries - 1);
           }
           console.warn(`Safe fetch warning for ${path}:`, err.message);
+          hadRentmanFetchError = true;
           return [];
         }
       };
@@ -176,6 +195,23 @@ export async function GET(request) {
       if (!projFunctionsMap.has(f.id)) projFunctionsMap.set(f.id, f);
     }
     const allProjFunctions = Array.from(projFunctionsMap.values());
+
+    // Fallback: If Rentman project functions failed to fetch during network glitch or rate limiting,
+    // and we have zero project functions, immediately fall back to the last known saved schedule!
+    if (allProjFunctions.length === 0 && hadRentmanFetchError) {
+      const diskFallback = getLastKnownSchedule(weekStr);
+      if (diskFallback && diskFallback.functions && diskFallback.functions.length > 0) {
+        console.warn(`Rentman functions failed to fetch — serving last known schedule (${diskFallback.functions.length} functions).`);
+        return {
+          ...diskFallback,
+          fromCache: true,
+          isStale: true,
+          isOffline: true,
+          fetchError: 'Kunde inte ansluta till Rentman — visar sparad data.',
+          lastUpdated: diskFallback.lastUpdated || new Date(Date.now() - (diskFallback.cacheAge || 0)).toISOString()
+        };
+      }
+    }
 
     // Lookup maps
     const projectMap = {};
@@ -870,13 +906,21 @@ export async function GET(request) {
 
     // Fallback to cached schedule if fetch returned 0 functions (e.g. transient Rentman lock/blip)
     if (functions.length === 0) {
-      const diskFallback = getCachedSchedule(weekStr, 24 * 60 * 60 * 1000);
+      const diskFallback = getLastKnownSchedule(weekStr);
       if (diskFallback && diskFallback.functions && diskFallback.functions.length > 0) {
         console.warn(`Rentman returned 0 functions — falling back to disk cache (${diskFallback.functions.length} functions).`);
-        return { ...diskFallback, fromCache: true, isStale: true };
+        return {
+          ...diskFallback,
+          fromCache: true,
+          isStale: true,
+          isOffline: true,
+          fetchError: 'Ingen anslutning till Rentman — visar sparad data.',
+          lastUpdated: diskFallback.lastUpdated || new Date(Date.now() - (diskFallback.cacheAge || 0)).toISOString()
+        };
       }
     }
 
+    const currentTimestamp = new Date().toISOString();
     const result = {
       weekStart: weekStartStr,
       weekEnd: weekEndStr,
@@ -885,10 +929,13 @@ export async function GET(request) {
       tasks,
       unscheduledFunctions,
       canceledFunctions,
-      pendingRentmanSync
+      pendingRentmanSync,
+      lastUpdated: currentTimestamp,
+      isOffline: hadRentmanFetchError,
+      fetchError: hadRentmanFetchError ? 'Viss data kunde inte uppdateras från Rentman' : null
     };
 
-    if (functions.length > 0) {
+    if (functions.length > 0 && !hadRentmanFetchError) {
       // If live Google Calendar fetch had completely failed and we fell back,
       // don't overwrite long-term disk cache unless we have complete data or previously had no cache
       if (allGoogleEvents !== null || !getCachedSchedule(weekStr)) {
@@ -910,12 +957,23 @@ export async function GET(request) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('Schedule API Error:', error);
-    const diskFallback = getCachedSchedule(weekStr, 24 * 60 * 60 * 1000);
+    const diskFallback = getLastKnownSchedule(weekStr);
     if (diskFallback && diskFallback.functions && diskFallback.functions.length > 0) {
       console.warn(`Serving disk cache fallback due to error for ${weekStr}`);
-      return NextResponse.json({ ...diskFallback, fromCache: true, isStale: true });
+      return NextResponse.json({
+        ...diskFallback,
+        fromCache: true,
+        isStale: true,
+        isOffline: true,
+        fetchError: error.message || 'Kunde inte ansluta till Rentman',
+        lastUpdated: diskFallback.lastUpdated || new Date().toISOString()
+      });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({
+      error: error.message,
+      isOffline: true,
+      lastUpdated: new Date().toISOString()
+    }, { status: 503 });
   } finally {
     globalThis._inFlightSchedules.delete(weekStr);
   }

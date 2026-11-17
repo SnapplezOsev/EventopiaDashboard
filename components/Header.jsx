@@ -15,7 +15,9 @@ export default function Header({
   onOpenSyncModal,
   showUnscheduledInGrid = false,
   onToggleUnscheduledInGrid,
-  unscheduledCount = 0
+  unscheduledCount = 0,
+  isOffline = false,
+  lastUpdated = null
 }) {
   const [time, setTime] = useState(new Date());
   
@@ -164,6 +166,19 @@ export default function Header({
 
       {/* Right side: View Switcher (to the left of clock) + Time & Date */}
       <div className="flex items-center gap-3 lg:gap-4 shrink-0 z-10 pr-2">
+        {isOffline && (
+          <div 
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600/30 border border-red-500/60 text-red-200 text-xs font-bold animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.3)] shrink-0"
+            title="Nätverksanslutning saknas — visar sparad data"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+            </span>
+            <span className="tracking-wider">OFFLINE</span>
+          </div>
+        )}
+
         {onViewChange && (
           <div className="flex items-center bg-black/40 p-1 rounded-2xl border border-white/10 shadow-inner">
             <button

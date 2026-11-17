@@ -13,6 +13,34 @@ import RentmanSyncModal from '@/components/RentmanSyncModal';
 import WarehouseView from '@/components/WarehouseView';
 import { getWeekDetails } from '@/lib/weekUtils';
 
+// Helper to format date and time in Swedish for data timestamping
+export function formatDataTimestamp(isoStr) {
+  if (!isoStr) return 'tidigare tillfälle';
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return 'tidigare tillfälle';
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    
+    const yesterday = new Date();
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = d.toDateString() === yesterday.toDateString();
+
+    const timeStr = d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+
+    if (isToday) {
+      return `Idag kl. ${timeStr}`;
+    }
+    if (isYesterday) {
+      return `Igår kl. ${timeStr}`;
+    }
+    const dateStr = d.toLocaleDateString('sv-SE', { weekday: 'short', day: 'numeric', month: 'short' });
+    return `${dateStr} kl. ${timeStr}`;
+  } catch (e) {
+    return 'tidigare tillfälle';
+  }
+}
+
 // Helper to determine default week: on Sunday afternoon (from 14:00 onwards),
 // auto-advance to next week (offset 1) so upcoming workweek is immediately visible on the TV
 export function getDefaultWeekOffset() {
@@ -34,6 +62,8 @@ const initialState = {
   isLoading: true,
   isBackgroundSyncing: false,
   error: null,
+  isOffline: false,
+  lastUpdated: null,
   selectedFunction: null,
   selectedTask: null,
   isTaskModalOpen: false,
@@ -50,24 +80,52 @@ function dashboardReducer(state, action) {
         // Only trigger full skeleton loading if we genuinely have no functions loaded yet
         isLoading: isSilent ? false : (state.functions.length === 0),
         isBackgroundSyncing: isSilent,
-        error: null,
       };
     }
-    case 'FETCH_SUCCESS':
+    case 'FETCH_SUCCESS': {
+      const payload = action.payload || {};
+      const incomingFunctions = payload.functions || [];
+      const isStaleOrOffline = Boolean(payload.isStale || payload.isOffline);
+
+      // CRITICAL DATA PRESERVATION:
+      // If incoming has 0 functions but we already have functions loaded on screen,
+      // and this was an error/offline/stale fallback, NEVER wipe existing functions!
+      const shouldKeepFunctions = (incomingFunctions.length === 0 && state.functions.length > 0);
+      const finalFunctions = shouldKeepFunctions ? state.functions : incomingFunctions;
+
       return {
         ...state,
         isLoading: false,
         isBackgroundSyncing: false,
-        functions: action.payload.functions || [],
-        unscheduledFunctions: action.payload.unscheduledFunctions || [],
-        crew: action.payload.crew || { internal: [], freelancers: [] },
-        tasks: action.payload.tasks || [],
-        weekStart: action.payload.weekStart,
-        weekEnd: action.payload.weekEnd,
-        pendingRentmanSync: action.payload.pendingRentmanSync || [],
+        functions: finalFunctions,
+        unscheduledFunctions: (shouldKeepFunctions && (!payload.unscheduledFunctions || payload.unscheduledFunctions.length === 0))
+          ? state.unscheduledFunctions
+          : (payload.unscheduledFunctions || []),
+        crew: (payload.crew && (payload.crew.internal?.length > 0 || payload.crew.freelancers?.length > 0)) ? payload.crew : state.crew,
+        tasks: (payload.tasks && payload.tasks.length > 0) ? payload.tasks : state.tasks,
+        weekStart: payload.weekStart || state.weekStart,
+        weekEnd: payload.weekEnd || state.weekEnd,
+        pendingRentmanSync: payload.pendingRentmanSync || state.pendingRentmanSync,
+        error: isStaleOrOffline ? (payload.fetchError || 'Kunde inte nå Rentman — visar sparad data.') : null,
+        isOffline: isStaleOrOffline,
+        lastUpdated: payload.lastUpdated || (isStaleOrOffline ? state.lastUpdated : new Date().toISOString()) || state.lastUpdated,
       };
+    }
     case 'FETCH_ERROR':
-      return { ...state, isLoading: false, isBackgroundSyncing: false, error: action.payload };
+      return {
+        ...state,
+        isLoading: false,
+        isBackgroundSyncing: false,
+        error: action.payload || 'Nätverksanslutningen bröts',
+        isOffline: true,
+        // Existing functions, crew, tasks are kept intact!
+      };
+    case 'SET_OFFLINE':
+      return {
+        ...state,
+        isOffline: action.payload.isOffline,
+        error: action.payload.isOffline ? (action.payload.error || state.error || 'Ingen internetanslutning') : null
+      };
     case 'SELECT_FUNCTION':
       return { ...state, selectedFunction: action.payload };
     case 'CLOSE_MODAL':
@@ -84,7 +142,9 @@ function dashboardReducer(state, action) {
           weekOffset: offset,
           isLoading: false,
           isBackgroundSyncing: false,
-          error: null,
+          error: cachedData.isOffline ? (cachedData.fetchError || 'Visar sparad vy') : null,
+          isOffline: Boolean(cachedData.isOffline),
+          lastUpdated: cachedData.lastUpdated || state.lastUpdated,
           functions: cachedData.functions || [],
           unscheduledFunctions: cachedData.unscheduledFunctions || [],
           crew: cachedData.crew || state.crew,
@@ -262,8 +322,19 @@ export default function Dashboard() {
       const data = await res.json();
       setWarehouseData(data);
       setWarehouseError(null);
+      if (typeof window !== 'undefined' && data) {
+        try { localStorage.setItem('dashboard_warehouse_data', JSON.stringify(data)); } catch(e){}
+      }
     } catch (err) {
       console.error('Failed to fetch warehouse data:', err);
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = localStorage.getItem('dashboard_warehouse_data');
+          if (cached) {
+            setWarehouseData(prev => prev || JSON.parse(cached));
+          }
+        } catch(e){}
+      }
       setWarehouseError(err.message);
     } finally {
       setIsWarehouseLoading(false);
@@ -745,6 +816,32 @@ export default function Dashboard() {
   const fetchData = useCallback(async (forceRefresh = false, silent = false) => {
     const { weekStr } = getWeekDetails(state.weekOffset);
 
+    // If browser is explicitly offline, try memory or localStorage
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      const cached = weekCacheRef.current.get(weekStr);
+      let localData = cached?.data;
+      if (!localData && typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem(`dashboard_week_${weekStr}`);
+          if (stored) localData = JSON.parse(stored);
+        } catch (e) {}
+      }
+      if (localData) {
+        dispatch({
+          type: 'FETCH_SUCCESS',
+          payload: {
+            ...localData,
+            isOffline: true,
+            isStale: true,
+            fetchError: 'Ingen internetanslutning — visar sparad data.'
+          }
+        });
+        return;
+      }
+      dispatch({ type: 'FETCH_ERROR', payload: 'Ingen internetanslutning' });
+      return;
+    }
+
     // If not forcing refresh, check client cache first
     if (!forceRefresh) {
       const cached = weekCacheRef.current.get(weekStr);
@@ -762,6 +859,14 @@ export default function Dashboard() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       weekCacheRef.current.set(weekStr, { data, timestamp: Date.now() });
+
+      // Save to localStorage for resilient offline backup
+      if (typeof window !== 'undefined' && data?.functions && data.functions.length > 0 && !data.isOffline) {
+        try {
+          localStorage.setItem(`dashboard_week_${weekStr}`, JSON.stringify(data));
+        } catch (e) {}
+      }
+
       dispatch({ type: 'FETCH_SUCCESS', payload: data });
       setRetryCountdown(null);
       // Auto-sync current & upcoming weeks to Google Calendar in background (fire-and-forget)
@@ -772,13 +877,37 @@ export default function Dashboard() {
       scheduleIdlePrefetch(state.weekOffset);
     } catch (err) {
       console.error('Failed to fetch schedule:', err);
-      dispatch({ type: 'FETCH_ERROR', payload: err.message });
-    }
-  }, [state.weekOffset, scheduleIdlePrefetch, triggerAutoCalendarSync]);
 
-  // Automatic retry timer on error (retries every 10 seconds)
+      // Check localStorage for offline fallback of this week
+      let localFallback = null;
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem(`dashboard_week_${weekStr}`);
+          if (stored) {
+            localFallback = JSON.parse(stored);
+          }
+        } catch (e) {}
+      }
+
+      if (localFallback && (localFallback.functions?.length > 0 || state.functions.length === 0)) {
+        dispatch({
+          type: 'FETCH_SUCCESS',
+          payload: {
+            ...localFallback,
+            isOffline: true,
+            isStale: true,
+            fetchError: 'Nätverksanslutningen bröts — visar sparad vy.'
+          }
+        });
+      } else {
+        dispatch({ type: 'FETCH_ERROR', payload: err.message || 'Ingen nätverksanslutning' });
+      }
+    }
+  }, [state.weekOffset, state.functions.length, scheduleIdlePrefetch, triggerAutoCalendarSync]);
+
+  // Automatic retry timer on error or offline (retries every 10 seconds)
   useEffect(() => {
-    if (!state.error) {
+    if (!state.error && !state.isOffline) {
       const timer = setTimeout(() => setRetryCountdown(null), 0);
       return () => clearTimeout(timer);
     }
@@ -798,17 +927,32 @@ export default function Dashboard() {
       clearTimeout(initTimer);
       clearInterval(timer);
     };
-  }, [state.error, fetchData]);
+  }, [state.error, state.isOffline, fetchData]);
 
-  // Auto-refetch immediately when network comes back online
+  // Auto-detect browser online and offline events
   useEffect(() => {
+    const handleOffline = () => {
+      console.warn('Browser network offline detected');
+      dispatch({
+        type: 'SET_OFFLINE',
+        payload: { isOffline: true, error: 'Ingen internetanslutning' }
+      });
+    };
+
     const handleOnline = () => {
       console.log('Network online — re-fetching schedule...');
+      dispatch({ type: 'SET_OFFLINE', payload: { isOffline: false } });
       fetchData(true);
+      fetchWarehouseData(true);
     };
+
+    window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
-    return () => window.removeEventListener('online', handleOnline);
-  }, [fetchData]);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [fetchData, fetchWarehouseData]);
 
   // Automatic page reload when a new server version or build is deployed
   const loadedCommitRef = useRef(null);
@@ -917,10 +1061,23 @@ export default function Dashboard() {
     const { weekStr } = getWeekDetails(nextOffset);
     const cached = weekCacheRef.current.get(weekStr);
 
-    if (cached?.data && (Date.now() - cached.timestamp < CLIENT_WEEK_CACHE_TTL)) {
+    let weekData = (cached?.data && (Date.now() - cached.timestamp < CLIENT_WEEK_CACHE_TTL)) ? cached.data : null;
+    if (!weekData && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(`dashboard_week_${weekStr}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.functions?.length > 0) {
+            weekData = { ...parsed, isOffline: true, isStale: true };
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (weekData) {
       dispatch({ 
         type: 'NAVIGATE_WEEK', 
-        payload: { offset: nextOffset, cachedData: cached.data } 
+        payload: { offset: nextOffset, cachedData: weekData } 
       });
       scheduleIdlePrefetch(nextOffset);
     } else {
@@ -942,10 +1099,23 @@ export default function Dashboard() {
     const { weekStr } = getWeekDetails(defaultOffset);
     const cached = weekCacheRef.current.get(weekStr);
 
-    if (cached?.data && (Date.now() - cached.timestamp < CLIENT_WEEK_CACHE_TTL)) {
+    let weekData = (cached?.data && (Date.now() - cached.timestamp < CLIENT_WEEK_CACHE_TTL)) ? cached.data : null;
+    if (!weekData && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(`dashboard_week_${weekStr}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.functions?.length > 0) {
+            weekData = { ...parsed, isOffline: true, isStale: true };
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (weekData) {
       dispatch({ 
         type: 'NAVIGATE_WEEK', 
-        payload: { offset: defaultOffset, cachedData: cached.data } 
+        payload: { offset: defaultOffset, cachedData: weekData } 
       });
       scheduleIdlePrefetch(defaultOffset);
     } else {
@@ -1239,31 +1409,55 @@ export default function Dashboard() {
           forceSleepRef.current = true;
           setScreensaverActive(true);
         }}
+        isOffline={Boolean(state.isOffline || state.error)}
+        lastUpdated={state.lastUpdated}
       />
 
-      {/* Reconnection Alert Banner if error occurs while having cached data */}
-      {state.error && state.functions.length > 0 && (
-        <div className="bg-amber-500/15 border border-amber-500/30 text-amber-200 px-4 py-2.5 rounded-xl flex items-center justify-between text-sm backdrop-blur-md shadow-lg shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+      {/* Red Alert Banner if offline, network error occurs, or stale fallback is displayed */}
+      {(state.error || state.isOffline) && (
+        <div className="bg-red-950/85 border-2 border-red-500/60 text-red-100 px-4 py-3 rounded-2xl flex items-center justify-between text-sm backdrop-blur-md shadow-[0_0_25px_rgba(239,68,68,0.35)] shrink-0 gap-4 transition-all">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <span className="relative flex h-3.5 w-3.5 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-500 shadow-sm"></span>
             </span>
-            <span className="font-medium text-xs">
-              Nätverksanslutningen bröts — behåller sparad vy.
-            </span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 min-w-0">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.828-2.828m2.828 2.828L3 3m15.364 2.636A9 9 0 005.636 5.636m12.728 0L3 21" />
+                </svg>
+                <span className="font-bold text-sm tracking-wide text-white">
+                  Internetproblem / Ingen anslutning
+                </span>
+              </div>
+              <span className="hidden sm:inline text-red-400/60">•</span>
+              <span className="text-red-200 text-xs font-medium">
+                Behåller tidigare vy — visar sparad data från{' '}
+                <strong className="text-white underline decoration-red-400/50 underline-offset-2">
+                  {formatDataTimestamp(state.lastUpdated)}
+                </strong>
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0">
             {retryCountdown !== null && (
-              <span className="text-amber-300/80 text-xs font-mono bg-black/20 px-2 py-0.5 rounded">
+              <span className="text-red-200/90 text-xs font-mono bg-black/40 px-2.5 py-1 rounded-lg border border-red-500/30">
                 Återansluter om {retryCountdown}s...
               </span>
             )}
+            <button
+              onClick={() => {
+                fetchData(true);
+                if (currentView === 'warehouse') fetchWarehouseData(true);
+              }}
+              className="px-4 py-1.5 bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Återanslut nu
+            </button>
           </div>
-          <button
-            onClick={() => fetchData(true)}
-            className="px-3 py-1 bg-amber-500/25 hover:bg-amber-500/40 active:scale-95 text-amber-100 rounded-md text-xs font-medium transition-all"
-          >
-            Återanslut nu
-          </button>
         </div>
       )}
 
